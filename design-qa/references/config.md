@@ -76,7 +76,8 @@ Never in the config, never in reports.
 | `DESIGN_QA_FIGMA_ASSET_HOSTS` | Extra hosts a `get_screenshot` URL may come from. |
 | `DESIGN_QA_EMBED_BUDGET_BYTES` | Total embedded image size in `report.html` (100 MB). |
 | `DESIGN_QA_AUTO_INSTALL` | `1`: allow `ensure-deps.mjs` to install skill-folder packages without asking. `0`: never auto-install. Unset: use `~/.design-qa/auto-install.json` from a prior `--grant`. |
-| `FIGMA_TOKEN` | Figma token for `figma-fetch.mjs`. |
+| `DESIGN_QA_LOAD_ENV` | `0`: do not load project `.env` / `.env.local`. Default: load from the git root (if any) then the working directory; existing shell env wins. |
+| `FIGMA_TOKEN` | Figma token for `figma-fetch.mjs`. May be set in the project `.env` / `.env.local`. |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira access for `jira-fetch.mjs`. |
 | `ANTHROPIC_API_KEY` | CI only (references/ci.md). |
 

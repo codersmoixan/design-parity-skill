@@ -463,7 +463,13 @@ export function runMain(metaUrl, main) {
   if (!isMain(metaUrl)) return;
   const name = path.basename(fileURLToPath(metaUrl));
   Promise.resolve()
-    .then(() => main(process.argv.slice(2)))
+    .then(async () => {
+      // Project .env / .env.local → process.env (FIGMA_TOKEN etc.). Never overrides
+      // existing env; never prints values. See lib/load-env.mjs.
+      const { loadProjectEnv } = await import('./load-env.mjs');
+      loadProjectEnv();
+      return main(process.argv.slice(2));
+    })
     .then(
       (code) => {
         process.exitCode = typeof code === 'number' ? code : 0;

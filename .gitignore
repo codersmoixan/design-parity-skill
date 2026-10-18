@@ -1,0 +1,45 @@
+# Skill npm deps (install via design-qa/ensure-deps.mjs)
+design-qa/node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# Env and secrets (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+
+# Logs and caches
+*.log
+npm-debug.log*
+.npm/
+.cache/
+.turbo/
+tmp/
+temp/
+
+# Playwright / test artifacts (if generated under this repo)
+test-results/
+playwright-report/
+blob-report/
+
+# Local QA pass output (when run against this skill tree itself)
+qa-reports/*/evidence/
+qa-reports/*/decisions*.json
+qa-reports/ci/
+qa-reports/**/logs/
+qa-reports/**/.design-qa-run.json
+qa-reports/**/.design-qa-pass-private.json
+
+# Optional local scratch
+*.local
+.local/

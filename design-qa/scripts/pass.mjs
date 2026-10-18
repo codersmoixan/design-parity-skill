@@ -823,7 +823,7 @@ function designStep(ctx) {
   const preCaptureDo = ctx.o?.ci ? [] : [
     'Before evidence captures a public/staging URL: ask once whether a cookie/consent banner or chat widget should be hidden (setup.mjs check --ask hide), and whether the design expects a signed-in header (save-session). Do this before the first capture when the design omits those chrome elements.',
   ];
-  const tokenDo = 'Get Figma access first: the person sets FIGMA_TOKEN in this terminal themselves (never paste the token into chat or into a command line). Or connect Figma MCP and re-run start with --agent figma-mcp=yes.';
+  const tokenDo = 'Get Figma access first: the person sets FIGMA_TOKEN in the project `.env` / `.env.local` or in this terminal (never paste the token into chat or into a command line). Or connect Figma MCP and re-run start with --agent figma-mcp=yes.';
   if (process.env.FIGMA_TOKEN) {
     return { what: `Figma ${oneLine(figmaUrl)} (FIGMA_TOKEN is set)${multiScreen ? '; multi-screen' : '; linked frame only'}`, do: [...ticketDo, ...scopeDo, ...preCaptureDo], cmd: rest };
   }

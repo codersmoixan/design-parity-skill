@@ -70,6 +70,7 @@ Environment:
                        for localhost)
   JIRA_EMAIL           Atlassian account email
   JIRA_API_TOKEN       API token (id.atlassian.com → Security → API tokens)
+  (Also loaded from the project `.env` / `.env.local` when unset in the shell.)
 
 ticket.json: { provider, key, url, title, status, description (plain text from ADF),
 acceptanceCriteria, expectedBehaviors [{ acRef, text, state, trigger }], figmaUrls,

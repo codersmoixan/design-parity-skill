@@ -49,7 +49,8 @@ Options:
 
 Environment:
   FIGMA_TOKEN        personal access token with the file_content:read scope
-                     (file_variables:read is needed for variables; Enterprise plans only)
+                     (file_variables:read is needed for variables; Enterprise plans only).
+                     Also read from the project `.env` / `.env.local` when unset in the shell.
   FIGMA_API_BASE     API base URL (default https://api.figma.com; https:// required,
                      http:// only for localhost)
 
@@ -299,7 +300,7 @@ async function main(argv) {
   const token = process.env.FIGMA_TOKEN;
   if (!token) {
     throw new CliError(
-      'FIGMA_TOKEN is not set. Create a personal access token in Figma (Settings → Security → Personal access tokens) with the file_content:read scope and export FIGMA_TOKEN.',
+      'FIGMA_TOKEN is not set. Create a personal access token in Figma (Settings → Security → Personal access tokens) with the file_content:read scope, then set FIGMA_TOKEN in the shell or in the project `.env` / `.env.local` (never paste the token into chat).',
       6,
     );
   }
