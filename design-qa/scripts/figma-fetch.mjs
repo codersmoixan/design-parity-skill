@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 // Fetch a Figma frame over the REST API: figma-spec.json (flattened layers,
 // components, styles, variables, discovered states) plus a PNG per state.
 import path from 'node:path';
@@ -14,7 +14,7 @@ const HELP = `Fetch a Figma frame (spec + PNG per designed state) over the REST 
 
 Usage:
   node scripts/figma-fetch.mjs --url <figma-url> --out <dir> [--node <id>]
-      [--states auto|<id,id,…>] [--scale 1] [--format png]
+      [--states auto|<id,id,鈥?] [--scale 1] [--format png]
   node scripts/figma-fetch.mjs --url <page-or-section-or-frame-url> --screens auto --out <dir>
       [--frame-map <file>]
 
@@ -22,12 +22,12 @@ Options:
   --url <link>       Figma design/file/proto link (node-id taken from the link)
   --node <id>        node to fetch instead of the link's node-id ("1:23" or "1-23")
   --states <mode>    auto (default): discover states from variant properties named
-                     State/Status, frames named like a state (Empty, Loading, Error, …),
+                     State/Status, frames named like a state (Empty, Loading, Error, 鈥?,
                      prototype reactions and annotations; or a comma-separated list of
                      node ids to export as extra states (named from their layer names)
   --screens auto     multi-screen: treat the node (a page, a section, or a frame and the
                      frames beside it on its page) as several screens. Frames whose names
-                     differ only by a state segment ("Cart", "Cart – Empty") are one screen
+                     differ only by a state segment ("Cart", "Cart 鈥?Empty") are one screen
                      with several states. Writes <out>/screens.json and, per screen,
                      <out>/screens/<id>/figma-spec.json + <out>/screens/<id>/figma/<state>.png
                      (capture each screen with --out <dir>/evidence/screens/<id>).
@@ -41,7 +41,7 @@ Options:
                      when you want this mode.
   --frame-map <file> confirmed frame mappings, for --screens auto or a single frame
                      (see state-discovery.mjs --help)
-  --scale <n>        export scale (default 1 — keep 1 to diff against DPR-1 captures)
+  --scale <n>        export scale (default 1 鈥?keep 1 to diff against DPR-1 captures)
   --format <fmt>     png (default) | jpg | svg | pdf
   --out <dir>        output directory (required)
   --quiet            only print errors
@@ -58,7 +58,7 @@ Writes <out>/figma-spec.json and <out>/figma/<state>.<format>. The main frame is
 exported as "with-data" unless its own name maps to another state. figma-spec.json keeps
 every layer's prototype reactions (with their transitions) and lists them as CSS-comparable
 specs under "motion" (trigger, type, durationMs, easing; springs are approximated).
-Prototype links (figma.com/proto/…) work like design links: node-id, else the
+Prototype links (figma.com/proto/鈥? work like design links: node-id, else the
 starting-point-node-id, is the frame.
 Retries HTTP 429/5xx and network errors up to 3 times with backoff (Retry-After is
 honoured). Each request times out after 30 s (DESIGN_QA_HTTP_TIMEOUT_MS, in ms). The token is
@@ -68,7 +68,7 @@ are skipped (recorded as a degradation).
 No token? Read the design with the Figma MCP and convert it with figma-mcp-spec.mjs
 (same files, no FIGMA_TOKEN).
 
-Exit codes: 0 ok · 1 error (node not found, render/download failure) · 2 bad arguments ·
+Exit codes: 0 ok 路 1 error (node not found, render/download failure) 路 2 bad arguments 路
 6 authentication (FIGMA_TOKEN missing or rejected)`;
 
 const FORMATS = ['png', 'jpg', 'svg', 'pdf'];
@@ -228,17 +228,17 @@ async function fetchScreens({ spec, nodesJson, variables, outDir, exporter, log,
   writeJson(path.join(outDir, 'screens.json'), index);
 
   // Names come from the Figma file: every one folded to one line.
-  log(`Figma: ${oneLine(spec.fileName ?? fileKey)} › ${oneLine(spec.name)} (${oneLine(spec.nodeId)}) — ${index.screens.length} screen(s)`);
+  log(`Figma: ${oneLine(spec.fileName ?? fileKey)} 鈥?${oneLine(spec.name)} (${oneLine(spec.nodeId)}) 鈥?${index.screens.length} screen(s)`);
   for (const s of index.screens) {
     log(
-      `  ${oneLine(s.id)}: ${oneLine(s.name)} (${oneLine(s.nodeId)}) ${oneLine(s.frame.width)}×${oneLine(s.frame.height)} — states ${s.states.map(oneLine).join(', ') || 'none'}; ` +
+      `  ${oneLine(s.id)}: ${oneLine(s.name)} (${oneLine(s.nodeId)}) ${oneLine(s.frame.width)}脳${oneLine(s.frame.height)} 鈥?states ${s.states.map(oneLine).join(', ') || 'none'}; ` +
         `capture with --width ${oneLine(s.frame.width)} --height ${oneLine(s.frame.height)} --out <dir>/evidence/screens/${oneLine(s.id)}`,
     );
   }
   for (const u of census.unmapped) {
-    warn(`frame ${u.nodeId} "${u.name}" (${u.frame.width}×${u.frame.height}) is unmapped: ${u.reason} Provisionally ${u.suggestion?.screen}/${u.suggestion?.state}; confirm it in a frame map (--frame-map)`);
+    warn(`frame ${u.nodeId} "${u.name}" (${u.frame.width}脳${u.frame.height}) is unmapped: ${u.reason} Provisionally ${u.suggestion?.screen}/${u.suggestion?.state}; confirm it in a frame map (--frame-map)`);
   }
-  for (const d of degradations) warn(`${d.step}: ${d.reason} — ${d.impact}`);
+  for (const d of degradations) warn(`${d.step}: ${d.reason} 鈥?${d.impact}`);
   log(`Wrote ${oneLine(displayPath(path.join(outDir, 'screens.json')))}`);
   if (items.length && !entries.length) throw new CliError('no Figma image could be exported (see warnings above)', 1);
   return 0;
@@ -274,7 +274,7 @@ async function main(argv) {
   const scale = toNumber(values.scale ?? '1', 'scale', { min: 0.01, max: 4 });
   const format = (values.format ?? 'png').toLowerCase();
   if (!FORMATS.includes(format)) throw usageError(`--format must be one of ${FORMATS.join(', ')} (got "${oneLine(values.format)}")`);
-  if (scale !== 1) warn(`--scale ${scale}: captures run at DPR 1, so a ${scale}× export cannot be pixel-diffed (diff.mjs refuses a width that is an integer multiple of the frame or the app image, exit 2; other scales are compared as wrongly sized images); export at --scale 1 for the diff`);
+  if (scale !== 1) warn(`--scale ${scale}: captures run at DPR 1, so a ${scale}脳 export cannot be pixel-diffed (diff.mjs refuses a width that is an integer multiple of the frame or the app image, exit 2; other scales are compared as wrongly sized images); export at --scale 1 for the diff`);
   if (values.screens !== undefined && values.screens !== 'auto') throw usageError(`--screens: only "auto" is supported (got "${oneLine(values.screens)}")`);
   let screensMode = values.screens === 'auto';
   let frameMap;
@@ -300,7 +300,7 @@ async function main(argv) {
   const token = process.env.FIGMA_TOKEN;
   if (!token) {
     throw new CliError(
-      'FIGMA_TOKEN is not set. Create a personal access token in Figma (Settings → Security → Personal access tokens) with the file_content:read scope, then set FIGMA_TOKEN in the shell or in the project `.env` / `.env.local` (never paste the token into chat).',
+      'FIGMA_TOKEN is not set. Create a personal access token in Figma (Settings 鈫?Security 鈫?Personal access tokens) with the file_content:read scope, then set FIGMA_TOKEN in the shell or in the project `.env` / `.env.local` (never paste the token into chat).',
       6,
     );
   }
@@ -416,15 +416,15 @@ async function main(argv) {
 
   const mainExport = spec.exports.find((e) => e.nodeId === nodeId);
   // Names come from the Figma file: every one folded to one line.
-  log(`Figma: ${oneLine(spec.fileName ?? fileKey)} › ${oneLine(spec.name)} (${nodeId}) — ${oneLine(spec.frame.width)}×${oneLine(spec.frame.height)} ${oneLine(spec.type).toLowerCase()}, ${spec.layers.length} layers`);
+  log(`Figma: ${oneLine(spec.fileName ?? fileKey)} 鈥?${oneLine(spec.name)} (${nodeId}) 鈥?${oneLine(spec.frame.width)}脳${oneLine(spec.frame.height)} ${oneLine(spec.type).toLowerCase()}, ${spec.layers.length} layers`);
   log(`States: ${spec.states.map((s) => `${oneLine(s.state)} (${oneLine(s.source)}: ${oneLine(s.name)})`).join(', ') || 'none found'}`);
   if (spec.motion.length) log(`Motion: ${spec.motion.map((m) => oneLine(`${m.trigger} ${m.type} ${m.durationMs ?? '?'}ms ${m.easing ?? ''}`)).join(', ')}`);
-  if (spec.exports.length) log(`Images: ${spec.exports.map((e) => `${oneLine(e.path)}${e.width ? ` ${e.width}×${e.height}` : ''}`).join(', ')}`);
+  if (spec.exports.length) log(`Images: ${spec.exports.map((e) => `${oneLine(e.path)}${e.width ? ` ${e.width}脳${e.height}` : ''}`).join(', ')}`);
   if (mainExport?.width && (mainExport.width !== Math.round(spec.frame.width * scale) || mainExport.height !== Math.round(spec.frame.height * scale))) {
-    warn(`the export is ${mainExport.width}×${mainExport.height} but the frame is ${spec.frame.width}×${spec.frame.height} (effects or clipping); capture at the export size or crop before diffing`);
+    warn(`the export is ${mainExport.width}脳${mainExport.height} but the frame is ${spec.frame.width}脳${spec.frame.height} (effects or clipping); capture at the export size or crop before diffing`);
   }
   if (mainExport?.width && scale === 1) log(`Capture with: --width ${mainExport.width} --height ${mainExport.height}`);
-  for (const d of degradations) warn(`${d.step}: ${d.reason} — ${d.impact}`);
+  for (const d of degradations) warn(`${d.step}: ${d.reason} 鈥?${d.impact}`);
   log(`Wrote ${oneLine(displayPath(specFile))}`);
   if (ids.length && !spec.exports.length) {
     throw new CliError('no Figma image could be exported (see warnings above)', 1);

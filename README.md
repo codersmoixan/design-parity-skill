@@ -95,7 +95,7 @@ If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chro
 - **Working directory** = the repository under test (commands and reports). **Skill folder** `design-qa` = tool deps (`pixelmatch`, `pngjs`, `playwright`); the app's `package.json` is not modified.
 - Missing packages: run `ensure-deps.mjs`. With `DESIGN_QA_AUTO_INSTALL=1` or a prior consent file (`~/.design-qa/auto-install.json`), install without asking; otherwise ask once, then `ensure-deps.mjs --grant`.
 - Read Figma through a signed-in Figma connection, or with `FIGMA_TOKEN` when that connection is unavailable. Prefer putting `FIGMA_TOKEN` (and other secrets) in the app repo's `.env` / `.env.local` — scripts load them automatically when unset in the shell. Or set them in the terminal. Do not paste tokens into chat or commit `.env`. Opt out: `DESIGN_QA_LOAD_ENV=0`.
-- On public/staging URLs, answer once about cookie banners and signed-in chrome before the first capture.
+- On public/staging URLs, `start` exits 3 with Ask-the-person questions (cookie banners / signed-in chrome). The agent must ask in chat before the first capture; answers go to `pre-capture-answers.json`, then `ack-pre-capture`.
 
 Commands run from the repository under test. A `node scripts/...` path in `design-qa/SKILL.md` points at this skill's `design-qa/scripts/` directory. Chained Next commands use `seq.mjs` (not shell `&&`) so PowerShell works.
 

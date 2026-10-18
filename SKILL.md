@@ -27,6 +27,16 @@ Design parity is the bundled [design-qa](design-qa/SKILL.md) skill, based on ups
 
 A pass is not finished until `pass.mjs finish` prints that it is finished, or the bundled skill says the pass is blocked. The user-facing reply is the reply specified in `design-qa/SKILL.md`.
 
+## When waiting on the person (hard rule)
+
+Whenever `pass.mjs` exits **3**, or a `Do:` line says to ask / tell the person (including **Ask the person** / pre-capture chrome):
+
+1. Your **next chat message** must ask those questions in the person's language, with the printed options (or a clear reply format).
+2. Do **not** end the turn with only tool/log output, and do **not** run `Next:` until they reply (or explicitly say to use defaults / skip).
+3. Prefer copying the printed `Ask the person` / `Question` block into chat; do not bury it inside a silent tool loop.
+
+Remote app URLs (preview / staging / prod): `start` exits 3 with pre-capture questions before the first live capture. After they answer, write `<dir>/pre-capture-answers.json` and run the printed `Next:` (`ack-pre-capture`, then design fetch / evidence).
+
 ## Inputs
 
 Accept a Figma file, frame, page, or section URL, a Figma prototype URL, or a coded prototype (Figma Make, Framer, v0, Lovable, HTML, or localhost), plus the app, preview, or staging URL. A ticket key is enough to start when the bundled skill can read the ticket.
@@ -46,7 +56,7 @@ A local `.fig` file is not an input. Ask for the Figma or prototype URL instead 
 - Do not type, ask for, print, or store a token or password. Sign-in stays with the bundled skill. If someone pastes a Figma token into chat, tell them to rotate it and never echo it back. Prefer `FIGMA_TOKEN` (and other secrets) in the app repo's `.env` / `.env.local`; scripts load those into the environment automatically when unset in the shell. Never commit `.env`.
 - Skill deps (`pixelmatch`, `pngjs`, `playwright`) install only in this skill's `design-qa` folder — not in the app repository. Commands still run from the repository under test (cwd). Node.js 20 or newer required.
 - If those packages cannot be resolved: run `node …/design-qa/scripts/ensure-deps.mjs`. Exit 0 → continue. Exit 3 → ask once to install in the skill folder (does not modify the app repo); on yes run `ensure-deps.mjs --grant` (writes `~/.design-qa/auto-install.json` so later passes need not ask). When `DESIGN_QA_AUTO_INSTALL=1` or that consent file exists, run `ensure-deps.mjs` without asking. Still ask before migrations or seeds.
-- Before the first live capture: ask once about cookie/consent banners and whether the design expects a signed-in session (references/browser-capture.md).
+- Before the first live capture on a remote URL: `start` exits 3 with Ask-the-person questions — surface them in chat (see hard rule above); do not skip to evidence (references/browser-capture.md).
 - When evidence reports unlisted worklist differences, expand the worklist before writing `findings.json` (follow the printed `Do:`).
 
 ## Shell notes (Windows)

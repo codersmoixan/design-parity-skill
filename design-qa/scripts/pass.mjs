@@ -86,6 +86,7 @@ Usage:
   node scripts/pass.mjs status   --dir <dir> [--run <id>]
   node scripts/pass.mjs finish   --dir <dir> --run <id>
   node scripts/pass.mjs save-drivers --dir <dir> --run <id> [--dry-run]
+  node scripts/pass.mjs ack-pre-capture --dir <dir> --run <id> [--from <answers.json>]
   node scripts/pass.mjs gate     --dir <dir>
   Every command also takes --json (a machine summary) and --verbose (every line, child output too).
 
@@ -166,6 +167,10 @@ save-drivers
           Writes <dir>/states.json into the config (surfaces.<name>.states, and screens.<id>.route)
           with setup.mjs apply's safe writer: validated first, atomic. Only when the person agrees
           (it changes a tracked file); --dry-run lists the changes. report and finish offer it.
+ack-pre-capture
+          After start exits 3 on a remote app URL: records the person's pre-capture answers
+          (<dir>/pre-capture-answers.json by default), then Next continues design fetch / evidence.
+          hide: "none" | "find" | a preCapture object; signedIn: true|false.
 gate      The CI check: validate.mjs first (a report.json the build would not make from the
           evidence and findings.json fails), then the verdict headline; exit 0 for PASS or
           REVIEW, 4 for anything else (FAIL, INCOMPLETE, no valid report). The one place that
@@ -247,6 +252,7 @@ const FLAGS = {
   status: { ...COMMON },
   finish: { ...COMMON },
   'save-drivers': { ...COMMON, surface: { type: 'string' }, 'dry-run': { type: 'boolean' } },
+  'ack-pre-capture': { ...COMMON, from: { type: 'string' } },
   gate: { ...COMMON },
   review: { ...COMMON, 'no-open': { type: 'boolean' }, 'timeout-min': { type: 'string' } },
 };
@@ -609,7 +615,17 @@ async function start(o) {
   const failing = (check.checks ?? []).filter((c) => c.ok !== true);
   const blocking = failing.filter((c) => c.blocking);
   const signIn = signInNeeded(check);
-  pass.stages.start = { at: new Date().toISOString(), ready: Boolean(check.ready) && !confirm, questions, blocking: blocking.map((c) => c.id), signIn, agent, ci };
+  const priorPreCaptureAck = keep?.stages?.start?.preCaptureAck ?? pass.stages?.start?.preCaptureAck ?? null;
+  pass.stages.start = {
+    at: new Date().toISOString(),
+    ready: Boolean(check.ready) && !confirm,
+    questions,
+    blocking: blocking.map((c) => c.id),
+    signIn,
+    agent,
+    ci,
+    ...(priorPreCaptureAck ? { preCaptureAck: priorPreCaptureAck } : {}),
+  };
   writePass(ctx.dir, pass);
 
   // 4. Output.
@@ -719,6 +735,32 @@ async function start(o) {
     const weaker = [ds.includes('ds-tokens') ? 'style values come only from the CSS variables on the page' : null, ds.includes('ds-components') ? 'the component check is off' : null].filter(Boolean).join(' and ');
     optional.push(`${ds.length ? 'Before evidence' : 'Optional, once'}: ask the person the ${plural(questions.length, 'question').replace(/^1 /, '')} above and write the answers, as shown after the arrows, merged into one object, to ${answers}, then run ${scriptCmd('setup.mjs', 'apply', '--answers', answers, '--no-next')} (${ds.length ? `skipped, the design-system check is weaker: ${weaker}` : 'skip it and nothing changes'}).`);
   }
+  // Remote public/staging/prod URLs: exit 3 with Ask-the-person questions so the agent must
+  // surface them in chat before the first live capture (ci never asks).
+  const appTarget = passUrl({ ...ctx, pass }) ?? config?.app?.baseUrl ?? null;
+  let appKindName = null;
+  try {
+    appKindName = appTarget ? appKind(String(appTarget).replace(/\$\{[^}]*\}/g, 'localhost')) : null;
+  } catch {
+    appKindName = null;
+  }
+  const needsPreCaptureAsk = !ci && appKindName && appKindName !== 'local' && !pass.stages.start.preCaptureAck;
+  if (needsPreCaptureAsk) {
+    const answersFile = `${ctx.rel}/pre-capture-answers.json`;
+    fillPreCaptureAskTail(ctx, pass.locale ?? 'en', answersFile);
+    const ackCmd = scriptCmd('pass.mjs', 'ack-pre-capture', '--dir', ctx.rel, '--run', ctx.runId, '--from', answersFile);
+    return emit(
+      ctx,
+      'start',
+      EXIT.INPUT,
+      nx(
+        chainCmds(ackCmd, designNext.cmd),
+        'STOP: your next chat message must ask the person the Ask-the-person questions above in their language (copy the options). Do not end the turn with only tool output, and do not run Next until they reply (or say to use defaults). Write their answers to the file named above, then run Next.',
+        ...optional,
+      ),
+      { ready: true, design: pass.design, preCapture: true },
+    );
+  }
   return emit(ctx, 'start', EXIT.OK, nx(designNext.cmd, ...optional, ...designNext.do), { ready: true, design: pass.design });
 }
 
@@ -820,21 +862,46 @@ function designStep(ctx) {
   const scopeDo = multiScreen
     ? ['Fetching every frame beside the linked node (--multi-screen / --screens auto). If evidence stops on unmapped frames and this pass is only one app URL, re-fetch without --screens auto, or run frame-map-from-census.mjs --ignore-unmapped.']
     : ['Fetching the linked frame only (default). For a whole Figma page/section with several app routes, re-run start with --multi-screen (or figma-fetch with --screens auto).'];
-  const preCaptureDo = ctx.o?.ci ? [] : [
-    'Before evidence captures a public/staging URL: ask once whether a cookie/consent banner or chat widget should be hidden (setup.mjs check --ask hide), and whether the design expects a signed-in header (save-session). Do this before the first capture when the design omits those chrome elements.',
-  ];
   const tokenDo = 'Get Figma access first: the person sets FIGMA_TOKEN in the project `.env` / `.env.local` or in this terminal (never paste the token into chat or into a command line). Or connect Figma MCP and re-run start with --agent figma-mcp=yes.';
   if (process.env.FIGMA_TOKEN) {
-    return { what: `Figma ${oneLine(figmaUrl)} (FIGMA_TOKEN is set)${multiScreen ? '; multi-screen' : '; linked frame only'}`, do: [...ticketDo, ...scopeDo, ...preCaptureDo], cmd: rest };
+    return { what: `Figma ${oneLine(figmaUrl)} (FIGMA_TOKEN is set)${multiScreen ? '; multi-screen' : '; linked frame only'}`, do: [...ticketDo, ...scopeDo], cmd: rest };
   }
   if (agent['figma-mcp'] === 'yes') {
     return {
       what: `Figma ${oneLine(figmaUrl)} (Figma MCP)${multiScreen ? '; multi-screen' : ''}`,
-      do: [...ticketDo, ...scopeDo, ...preCaptureDo, `Call get_metadata on the linked node with your Figma tools and save the result as ${evidence}/metadata.xml.`],
+      do: [...ticketDo, ...scopeDo, `Call get_metadata on the linked node with your Figma tools and save the result as ${evidence}/metadata.xml.`],
       cmd: chainCmds(scriptCmd('figma-mcp-spec.mjs', '--metadata', `${evidence}/metadata.xml`, ...urlFlag('url', figmaUrl, URL_VARS.design), '--out', evidence), evidenceCmd),
     };
   }
   return { what: `Figma ${oneLine(figmaUrl)}`, do: [...ticketDo, tokenDo, ...scopeDo], cmd: rest };
+}
+
+/**
+ * Print the pre-capture Ask-the-person block into ctx.tail (never line-capped). Locale zh →
+ * Chinese questions; otherwise English. answersFile is the path the agent writes after the reply.
+ */
+function fillPreCaptureAskTail(ctx, locale, answersFile) {
+  const zh = normalizeLocale(locale) === 'zh';
+  const T = (ctx.tail = []);
+  if (zh) {
+    T.push('Ask the person（须在对话中提问，收到回复前不要跑 Next）:');
+    T.push('1) 线上页面是否有设计稿没有的 Cookie/同意条、促销条或聊天按钮？');
+    T.push(`  a) 没有 / 跳过 → ${JSON.stringify({ hide: 'none', signedIn: false })}`);
+    T.push(`  b) 有，抓图时要藏 → ${JSON.stringify({ hide: 'find', signedIn: false })}`);
+    T.push('2) 设计稿是否展示已登录顶栏（账号名、购物车角标等），而当前 URL 是未登录？');
+    T.push('  a) 否 → 保持 signedIn: false');
+    T.push('  b) 是 → 把 signedIn 改为 true（Next 会打开浏览器，由你自行登录）');
+    T.push(`回复示例: 1a, 2a  或把合并后的 JSON 写入 ${answersFile}`);
+  } else {
+    T.push('Ask the person (required — reply in chat before Next):');
+    T.push('1) Does a cookie/consent banner, promo strip, or chat launcher appear on the app URL but not in the design?');
+    T.push(`  a) No / skip → ${JSON.stringify({ hide: 'none', signedIn: false })}`);
+    T.push(`  b) Yes, hide them for capture → ${JSON.stringify({ hide: 'find', signedIn: false })}`);
+    T.push('2) Does the design show a signed-in header (account name, cart badge) while this URL is anonymous?');
+    T.push('  a) No → keep signedIn: false');
+    T.push('  b) Yes → set signedIn: true (Next opens a browser; they sign in themselves)');
+    T.push(`Reply like: 1a, 2a  or write the merged JSON to ${answersFile}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2068,6 +2135,80 @@ async function finish(o) {
 }
 
 // ---------------------------------------------------------------------------
+// ack-pre-capture: person's answers before the first remote live capture
+// ---------------------------------------------------------------------------
+
+async function ackPreCapture(o) {
+  const ctx = passContext(o);
+  const L = ctx.lines;
+  const answersFile = o.from ? path.resolve(o.from) : path.join(ctx.dir, 'pre-capture-answers.json');
+  const answersRel = show(answersFile);
+  if (!existsSync(answersFile)) {
+    fillPreCaptureAskTail(ctx, ctx.pass?.locale ?? 'en', answersRel);
+    return emit(
+      ctx,
+      'ack-pre-capture',
+      EXIT.INPUT,
+      nx(scriptCmd('pass.mjs', 'ack-pre-capture', '--dir', ctx.rel, '--run', ctx.runId, '--from', answersRel), `Write the answers to ${answersRel}, then run Next.`),
+    );
+  }
+  let answers;
+  try {
+    answers = readJsonFile(answersFile);
+  } catch (err) {
+    throw usageError(`${answersRel}: ${err.message}`);
+  }
+  if (!isObj(answers) || !('hide' in answers) || !('signedIn' in answers)) {
+    fillPreCaptureAskTail(ctx, ctx.pass?.locale ?? 'en', answersRel);
+    return emit(
+      ctx,
+      'ack-pre-capture',
+      EXIT.INPUT,
+      nx(scriptCmd('pass.mjs', 'ack-pre-capture', '--dir', ctx.rel, '--run', ctx.runId, '--from', answersRel), `Fix ${answersRel}: need { "hide": "none"|"find"|preCaptureObject, "signedIn": true|false }.`),
+    );
+  }
+  const hide = answers.hide;
+  const signedIn = answers.signedIn === true;
+  if (!(hide === 'none' || hide === 'find' || isObj(hide))) {
+    throw usageError(`${answersRel}: hide must be "none", "find", or a preCapture object`);
+  }
+  if (typeof answers.signedIn !== 'boolean') {
+    throw usageError(`${answersRel}: signedIn must be true or false`);
+  }
+  if (!ctx.pass.stages.start) ctx.pass.stages.start = {};
+  ctx.pass.stages.start.preCaptureAck = { at: new Date().toISOString(), hide: hide === 'find' ? 'find' : hide === 'none' ? 'none' : 'custom', signedIn };
+  writePass(ctx.dir, ctx.pass);
+  L.push(`Pre-capture acknowledged: hide=${hide === 'none' || hide === 'find' ? hide : 'custom'} · signedIn=${signedIn}`);
+
+  if (isObj(hide) && ctx.configFile) {
+    try {
+      applyAnswers({ configPath: ctx.configFile, answers: { hide }, url: passUrl(ctx) });
+      L.push(`Applied hide selectors to ${show(ctx.configFile)}.`);
+    } catch (err) {
+      throw new CliError(`could not apply hide answers: ${oneLine(err.message)}`, EXIT.FAILED);
+    }
+  }
+
+  const agent = ctx.pass.stages.start.agent ?? {};
+  const designNext = designStep({ ...ctx, pass: ctx.pass, agent });
+  const dos = [];
+  if (hide === 'find') {
+    dos.push('After the first capture, if a banner/chat still appears and the design omits it: setup.mjs check --ask hide, ask the person, apply, then evidence --force (references/browser-capture.md).');
+  }
+  if (signedIn) {
+    const save = saveSessionCmd(ctx);
+    return emit(
+      ctx,
+      'ack-pre-capture',
+      EXIT.OK,
+      nx(chainCmds(save, designNext.cmd), 'Tell the person the app needs a signed-in session: the next command opens a browser window where they sign in themselves; you type nothing.', ...dos, ...designNext.do),
+      { signedIn: true },
+    );
+  }
+  return emit(ctx, 'ack-pre-capture', EXIT.OK, nx(designNext.cmd, ...dos, ...designNext.do), { signedIn: false });
+}
+
+// ---------------------------------------------------------------------------
 // save-drivers: the pass's states.json into the project config (only when asked)
 // ---------------------------------------------------------------------------
 
@@ -2188,7 +2329,7 @@ async function main(rawArgv) {
     console.log(HELP);
     return 0;
   }
-  if (!FLAGS[command0]) throw usageError(`unknown or missing command "${oneLine(command0 ?? '')}": use start, evidence, report, review, status, finish, save-drivers or gate (see --help)`);
+  if (!FLAGS[command0]) throw usageError(`unknown or missing command "${oneLine(command0 ?? '')}": use start, evidence, report, review, status, finish, save-drivers, ack-pre-capture or gate (see --help)`);
   const { values, positionals } = parseCli(argv, FLAGS[command0], { allowPositionals: true });
   if (positionals.length !== 1) throw usageError(`unexpected argument "${oneLine(positionals[1])}" (see --help)`);
   try {
@@ -2197,6 +2338,7 @@ async function main(rawArgv) {
     if (command0 === 'report') return await report(values);
     if (command0 === 'status') return await status(values);
     if (command0 === 'save-drivers') return await saveDrivers(values);
+    if (command0 === 'ack-pre-capture') return await ackPreCapture(values);
     if (command0 === 'gate') return await gate(values);
     if (command0 === 'review') return await review(values);
     return await finish(values);

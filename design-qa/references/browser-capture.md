@@ -28,12 +28,14 @@ With-data (else the first state) is captured first. After it passed signed in, a
 
 ## Before the first live capture
 
+On a **remote** app URL (preview / staging / prod), `pass.mjs start` exits **3** and prints an **Ask the person** block. The agent must put that block in the **chat reply** (person's language) and must not run `Next:` until they answer (or say to use defaults). Answers go to `<dir>/pre-capture-answers.json`; `Next:` runs `ack-pre-capture` then design fetch / evidence.
+
 Ask **once** (same round as any open setup questions when possible):
 
-1. Does a cookie/consent banner, promo strip, or chat launcher appear on the app URL but not in the design? If yes → hide (below).
-2. Does the design show a signed-in header (account name, cart badge) while the URL is anonymous? If yes → `setup.mjs save-session` (or treat logged-in as a separate state later).
+1. Does a cookie/consent banner, promo strip, or chat launcher appear on the app URL but not in the design? If yes → hide (below); answer `hide: "find"` to defer selector choice, or a preCapture object to apply now.
+2. Does the design show a signed-in header (account name, cart badge) while the URL is anonymous? If yes → `signedIn: true` so `ack-pre-capture` chains `setup.mjs save-session` (or treat logged-in as a separate state later).
 
-Do this **before** the first `pass.mjs evidence` on public/staging URLs. A cookie drawer over Best Sellers (or similar) is not a fair pixel/structure compare.
+Do this **before** the first `pass.mjs evidence` on public/staging URLs. A cookie drawer over Best Sellers (or similar) is not a fair pixel/structure compare. Never end a turn waiting on these answers with only tool/log output.
 
 ## Hiding what the design leaves out
 
