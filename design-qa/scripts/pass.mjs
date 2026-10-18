@@ -53,6 +53,7 @@ import { applyAnswers, looksSecret } from './lib/setup.mjs';
 import { designSystemNotChecked, explainVerdict, scorecardHeadline } from './lib/ranking.mjs';
 import { configFingerprint } from './lib/build-report.mjs';
 import { ANNOTATIONS_FILE } from './lib/annotations.mjs';
+import { normalizeLocale } from './lib/report-i18n.mjs';
 import { triageLists } from './lib/triage.mjs';
 import { assertRunOwnsDir, assessDir, callerRunId, readReviewRegistration, readRunLock, registrationAlive } from './lib/run-lock.mjs';
 import { appKind, classifyInput } from './lib/target-url.mjs';
@@ -209,6 +210,9 @@ Options:
   --only <step>      one of ${EVIDENCE_STEPS.join(', ')}
   --findings <file>  default: <dir>/findings.json (template: references/templates/findings.template.json)
   --top <n>          fix-now size (render-report.mjs --top-n)
+  --locale <zh|en>   start / report: report.html UI language. zh = Chinese chrome; anything
+                     else = English. The agent sets zh when the person's request is Chinese;
+                     otherwise en. Stored on pass.json and passed to render-report.mjs.
   --ci               start: never ask (setup.mjs check --ci); report then defaults to --mode ci
   --recapture [<s>]  evidence: capture these app states again (comma-separated), or every one
 
@@ -237,9 +241,9 @@ missing input) · 4 gate only: the verdict fails the CI check · 5 another run o
 
 const COMMON = { json: { type: 'boolean' }, verbose: { type: 'boolean' }, run: { type: 'string' }, dir: { type: 'string' }, config: { type: 'string' } };
 const FLAGS = {
-  start: { ...COMMON, feature: { type: 'string' }, surface: { type: 'string' }, url: { type: 'string' }, design: { type: 'string' }, prototype: { type: 'string' }, ticket: { type: 'string' }, label: { type: 'string' }, agent: { type: 'string', multiple: true }, resume: { type: 'boolean' }, 'take-over': { type: 'boolean' }, quick: { type: 'boolean' }, ci: { type: 'boolean' }, 'multi-screen': { type: 'boolean' }, screen: { type: 'string', multiple: true } },
+  start: { ...COMMON, feature: { type: 'string' }, surface: { type: 'string' }, url: { type: 'string' }, design: { type: 'string' }, prototype: { type: 'string' }, ticket: { type: 'string' }, label: { type: 'string' }, agent: { type: 'string', multiple: true }, resume: { type: 'boolean' }, 'take-over': { type: 'boolean' }, quick: { type: 'boolean' }, ci: { type: 'boolean' }, 'multi-screen': { type: 'boolean' }, screen: { type: 'string', multiple: true }, locale: { type: 'string' } },
   evidence: { ...COMMON, surface: { type: 'string' }, url: { type: 'string' }, states: { type: 'string' }, 'frame-map': { type: 'string' }, prototype: { type: 'string' }, frame: { type: 'string' }, force: { type: 'boolean' }, only: { type: 'string' }, recapture: { type: 'string' } },
-  report: { ...COMMON, findings: { type: 'string' }, top: { type: 'string' }, mode: { type: 'string' }, check: { type: 'boolean' }, review: { type: 'boolean' } },
+  report: { ...COMMON, findings: { type: 'string' }, top: { type: 'string' }, mode: { type: 'string' }, check: { type: 'boolean' }, review: { type: 'boolean' }, locale: { type: 'string' } },
   status: { ...COMMON },
   finish: { ...COMMON },
   'save-drivers': { ...COMMON, surface: { type: 'string' }, 'dry-run': { type: 'boolean' } },
@@ -598,6 +602,9 @@ async function start(o) {
   if (o.url) pass.url = keepUrl(ctx.dir, 'url', o.url);
   if (design) pass.design = { ...design, url: keepUrl(ctx.dir, 'design', design.url) };
   if (ticket) pass.ticket = ticket;
+  // report.html chrome language: zh when the person asked in Chinese (agent passes --locale zh).
+  if (o.locale != null && String(o.locale).trim() !== '') pass.locale = normalizeLocale(o.locale);
+  else if (!pass.locale) pass.locale = 'en';
   const questions = (check.questions ?? []).map((q) => q.id);
   const failing = (check.checks ?? []).filter((c) => c.ok !== true);
   const blocking = failing.filter((c) => c.blocking);
@@ -630,7 +637,9 @@ async function start(o) {
   if (check.ready && !confirm && !ci && componentCheckOff(config)) L.push(componentsOff(config));
   pass.stages.start.quick = Boolean(o.quick);
   pass.stages.start.multiScreen = Boolean(o['multi-screen'] || pass.stages.start.multiScreen);
+  pass.stages.start.locale = pass.locale;
   writePass(ctx.dir, pass);
+  L.push(`Report locale: ${pass.locale} (report.html UI)`);
   if (screens.length) {
     // The screens go to this pass's states.json (merged over what is there), the drivers stay.
     const file = path.join(ctx.dir, PASS_STATES_FILE);
@@ -1673,6 +1682,11 @@ async function report(o) {
   const reportFile = path.join(dir, 'report.json');
   if (o.mode && !['audit', 'fix', 'ci'].includes(o.mode)) throw usageError(`--mode must be audit, fix or ci (got "${oneLine(o.mode)}")`);
   const modeArg = o.mode ?? (pass.stages?.start?.ci ? 'ci' : null);
+  if (o.locale != null && String(o.locale).trim() !== '') {
+    pass.locale = normalizeLocale(o.locale);
+    writePass(dir, pass);
+  }
+  const reportLocale = normalizeLocale(pass.locale);
   const top = o.top !== undefined ? toNumber(o.top, 'top', { min: 1, max: 1000, integer: true }) : null;
   const again = (extra = []) => passCmd(ctx, 'report', [...(o.findings ? ['--findings', show(findings)] : []), ...(o.mode ? ['--mode', o.mode] : []), ...(top ? ['--top', top] : []), ...extra]);
   const cfg = ctx.configFile ? ['--config', ctx.configFile] : [];
@@ -1732,7 +1746,8 @@ async function report(o) {
       [
         '--in', reportFile, '--out', path.join(dir, 'report.html'), '--fixplan', path.join(dir, 'report-fixplan.md'),
         ...(backfillItems ? ['--backfill-plan', path.join(dir, 'report-backfill.md')] : []),
-        ...cfg, '--embed-images', '--recompute', '--write-back', ...(top ? ['--top-n', top] : []), '--run', ctx.runId,
+        ...cfg, '--embed-images', '--recompute', '--write-back', ...(top ? ['--top-n', top] : []),
+        '--locale', reportLocale, '--run', ctx.runId,
       ],
       { log },
     );

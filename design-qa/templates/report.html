@@ -927,6 +927,14 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
   var LIVE = CTX.live === true && typeof CTX.token === 'string' && /^https?:$/.test(location.protocol);
   var REPORT_PATH = typeof CTX.reportPath === 'string' && CTX.reportPath ? CTX.reportPath : null;
   var CONFIG_PATH = typeof CTX.configPath === 'string' && CTX.configPath ? CTX.configPath : null;
+  // UI locale: CTX.locale zh → Chinese chrome (CTX.i18n map); anything else stays English.
+  // Named tr (not t): many helpers use a local var t.
+  var LOCALE = CTX.locale === 'zh' ? 'zh' : 'en';
+  var I18N = (CTX.i18n && typeof CTX.i18n === 'object' && !Array.isArray(CTX.i18n)) ? CTX.i18n : {};
+  function tr(s) {
+    if (LOCALE !== 'zh' || typeof s !== 'string' || !s) return s;
+    return Object.prototype.hasOwnProperty.call(I18N, s) ? I18N[s] : s;
+  }
 
   /* ===== 2. DOM helpers, icons, badges, buttons ===== */
   // Icons: Lucide (https://lucide.dev), ISC License. Only the glyphs this report uses.
@@ -981,7 +989,11 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
       if (v === null || v === undefined || v === false) return;
       if (k === 'class') el.className = v;
       else if (k.slice(0, 2) === 'on' && typeof v === 'function') el.addEventListener(k.slice(2), v);
-      else el.setAttribute(k, v === true ? '' : String(v));
+      else {
+        // Translate chrome attrs only (exact EN keys in I18N); leave report/finding text alone.
+        if ((k === 'aria-label' || k === 'data-tip' || k === 'placeholder' || k === 'title') && typeof v === 'string') v = tr(v);
+        el.setAttribute(k, v === true ? '' : String(v));
+      }
     });
     for (var i = 2; i < arguments.length; i++) append(el, arguments[i]);
     return el;
@@ -989,6 +1001,8 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
   function append(el, kid) {
     if (kid === null || kid === undefined || kid === false) return;
     if (Array.isArray(kid)) { kid.forEach(function (k) { append(el, k); }); return; }
+    // Exact chrome phrases in I18N become Chinese; finding titles / evidence stay English unless keyed.
+    if (typeof kid === 'string') { el.append(tr(kid)); return; }
     el.append(kid); // a node as is; any other value (report text, the URL hash) as a text node: append() never parses markup
   }
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
@@ -1009,11 +1023,11 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
   function oneLine(v) { return String(v === null || v === undefined ? '' : v).replace(/[\s\u0000-\u001f\u007f-\u009f]+/g, ' ').trim(); }
   function line1(v) { return oneLine(v) || DASH; }
   function arr(v) { return Array.isArray(v) ? v : []; }
-  function badge(v, extra) { return h('span', { class: 'badge badge-outline' + (extra ? ' ' + extra : '') }, String(v)); } // neutral: colour only means severity
+  function badge(v, extra) { return h('span', { class: 'badge badge-outline' + (extra ? ' ' + extra : '') }, tr(String(v))); } // neutral: colour only means severity
   function btn(label, o) {
     o = o || {};
     return h('button', { type: 'button', id: o.id || null, class: 'btn btn-' + (o.variant || 'outline') + (o.size ? ' btn-' + o.size : '') + (o.cls ? ' ' + o.cls : ''),
-      'aria-label': o.aria || null, 'data-tip': o.tip || null, onclick: o.onclick || null }, o.icon ? icon(o.icon) : null, label || null);
+      'aria-label': o.aria || null, 'data-tip': o.tip || null, onclick: o.onclick || null }, o.icon ? icon(o.icon) : null, label != null && label !== '' ? tr(String(label)) : null);
   }
   function copyBtn(label, getText, what, o) {
     o = o || {};
@@ -1530,7 +1544,7 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
     paintSummary();
     return h('section', { class: 'page-head', 'aria-labelledby': 'page-title' },
       h('div', { class: 'row', style: 'gap:0.75rem' }, h('h1', { class: 'page-title', id: 'page-title' }, orDash(meta.feature)),
-        h('span', { class: 'badge verdict-' + cls(SC.verdict || ''), id: 'verdict' }, 'Verdict: ' + orDash(SC.verdict))),
+        h('span', { class: 'badge verdict-' + cls(SC.verdict || ''), id: 'verdict' }, tr('Verdict:') + ' ' + orDash(SC.verdict))),
       h('div', { class: 'meta' },
         sourceLine(),
         SCREENS.length ? h('span', { class: 'tabular' }, plural(SCREENS.length, 'screen')) : null,
@@ -2688,7 +2702,7 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
     var ok = saveAN();
     closeForm(false);
     refreshAnnotations();
-    toast(anLabel(a) + (F.key ? ' saved' : ' added: Review and send passes it to your agent') + (ok ? '' : ' (this session only: browser storage is unavailable)'));
+    toast(anLabel(a) + (F.key ? tr(' saved') : tr(' added: Review and send passes it to your agent')) + (ok ? '' : tr(' (this session only: browser storage is unavailable)')));
     focusAnnotation(a.key, F.host);
   }
   function focusAnnotation(key, host) {
@@ -2877,7 +2891,7 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
     [laneFix, laneDebt].forEach(function (l) { if (!l.children.length) l.appendChild(h('li', { class: 'lane-empty' }, 'Nothing here')); });
     var nFix = selected('fix-now').length, nDebt = selected('debt').length;
     countFix.textContent = String(nFix); countDebt.textContent = String(nDebt);
-    triStatus.textContent = nFix + ' to fix now · ' + nDebt + ' to debt';
+    triStatus.textContent = nFix + tr(' to fix now · ') + nDebt + tr(' to debt');
     clear(boardSummary); append(boardSummary, triSummary(triageable));
     renderTriButtons();
     triLanes.hidden = !triageable.length; triActions.hidden = !triageable.length; triEmpty.hidden = !!triageable.length;
@@ -2909,8 +2923,8 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
   }
   function resetTriage() { var first = snapshot(); SEL = recommended(); renderBoard(first); persist(); paintTriageViews(); toast('Selection reset to the recommended split'); }
   function paintTriNote() {
-    triNote.textContent = (TRI ? 'Decided by ' + orDash(TRI.decidedBy) + ' on ' + fmtDate(TRI.decidedAt) + '. ' : 'Recommended from the ranking. ') +
-      (selEdited ? 'Changed in this browser: use Review and send to pass it to your agent.' : 'Choose Fix now or Debt on each card; the rest of the app follows. Dismiss what is not an issue.');
+    triNote.textContent = (TRI ? tr('Decided by ') + orDash(TRI.decidedBy) + tr(' on ') + fmtDate(TRI.decidedAt) + '. ' : tr('Recommended from the ranking. ')) +
+      (selEdited ? tr('Changed in this browser: use Review and send to pass it to your agent.') : tr('Choose Fix now or Debt on each card; the rest of the app follows. Dismiss what is not an issue.'));
   }
   var triLanes = h('div', { class: 'lanes' },
     h('div', { class: 'lane', role: 'group', 'aria-labelledby': 'lane-fix-title' }, h('div', { class: 'lane-head' }, h('h3', { class: 'lane-title', id: 'lane-fix-title' }, 'Fix now', countFix), h('p', { class: 'lane-sub' }, 'Your agents get these')), laneFix),

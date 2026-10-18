@@ -4,7 +4,7 @@
 
 Compare an implemented webpage with its design, screen by screen and state by state. The design is the source of truth. Data such as product names, prices, dates, and counts may differ. Components, design tokens, typography, color, spacing, sizing, radii, borders, shadows, icons, layer order, copy, every designed state, and motion must match.
 
-The check uses the bundled [design-qa](design-qa/SKILL.md) 0.2.3 procedure (MIT, Copyright (c) 2026 Dimitris Niavis). Its scripts capture pages, diff pixels, audit the design system, and write the report and fix plan. This skill does not reimplement those steps.
+The check uses the bundled [design-qa](design-qa/SKILL.md) procedure based on upstream 0.2.3 (MIT, Copyright (c) 2026 Dimitris Niavis), with local forks/patches in this skill (linked-frame default, optional multi-screen, and related fixes). Its scripts capture pages, diff pixels, audit the design system, and write the report and fix plan. This skill does not reimplement those steps. Local changes do not bump the upstream 0.2.3 version.
 
 ## What it does
 
@@ -59,13 +59,44 @@ One invocation needs a design source and the page under test:
 
 The page may be local, a preview, or a staging URL.
 
+## Single page vs multi-screen
+
+**Default: one page only.** With one Figma frame URL (with `node-id`) and one app URL, only that **linked frame** is fetched. Sibling frames on the same Figma page (PLP, Cart, and so on) are not pulled.
+
+```text
+/ui-quality-testing Compare this page with the design.
+Design: https://www.figma.com/design/...?node-id=373-79410
+Page: https://www.clibee.global/pl_en
+```
+
+**To fetch sibling frames for several app routes**, say multi-screen / full site, and map each screen to a URL:
+
+```text
+/ui-quality-testing Full-site design QA (multi-screen).
+Design: https://www.figma.com/design/...?node-id=... (page or section)
+Use --multi-screen to fetch sibling frames.
+
+Screen → URL:
+- homepage → https://example.com/
+- plp → https://example.com/plp
+- cart → https://example.com/cart
+(Skip or CANNOT_VERIFY frames with no URL.)
+```
+
+Or limit to a few screens and ignore the rest. Without “multi-screen”, the pass stays single-page.
+
+## Report language (report.html)
+
+If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chrome (tabs, buttons, labels) is Chinese. Any other language gets an English report (`--locale en` or omit). Finding titles and evidence text are not auto-translated.
+
 ## Before the first run
 
 - Node.js 20 or newer.
 - Install `pixelmatch`, `pngjs`, and `playwright` in the `design-qa` directory. The agent asks before installing.
-- Read Figma through a signed-in Figma connection, or with `FIGMA_TOKEN` when that connection is unavailable. Sign-in opens in a window. Do not paste a token or password into the chat.
+- Read Figma through a signed-in Figma connection, or with `FIGMA_TOKEN` when that connection is unavailable. Set the token in your own terminal (do not paste it into chat; rotate it if you already did). Sign-in opens in a window.
+- On public/staging URLs, answer once about cookie banners and signed-in chrome before the first capture.
 
-Commands run from the repository under test. A `node scripts/...` path in `design-qa/SKILL.md` points at this skill's `design-qa/scripts/` directory.
+Commands run from the repository under test. A `node scripts/...` path in `design-qa/SKILL.md` points at this skill's `design-qa/scripts/` directory. Chained Next commands use `seq.mjs` (not shell `&&`) so PowerShell works.
 
 ## How one pass runs
 
@@ -82,7 +113,7 @@ Start
 ```
 
 1. **Start.** Record the feature name, design URL, and page URL. Create this run's report directory and run id. If the script asks questions, answer them in one round. Sign in inside the window it opens.
-2. **Fetch the design.** With a Figma token, the script fetches the frames. Without a token, the Figma connection reads the structure, then captures one 1x screenshot per state. A coded prototype is recorded per screen and state, such as an empty cart at `?empty=1`. A ticket is read first.
+2. **Fetch the design.** With a Figma token, the script fetches frames (linked frame only by default; `--multi-screen` pulls siblings). Without a token, the Figma connection reads the structure, then captures one 1x screenshot per state. A coded prototype is recorded per screen and state, such as an empty cart at `?empty=1`. A ticket is read first.
 3. **Capture and compare.** Capture the whole page for every designed state, then diff and audit. A state that was not captured is named. The report is refused when the page lacks that state or the capture driver is wrong.
 4. **Record judgments.** Compare the side-by-side tiles and the measured values. Every difference becomes a finding or a rejection with a reason. Use the values the script read. Do not measure pixels by hand.
 5. **Build the report.** Write `report.json`, `report.html`, and the fix plan. Earlier dismissals are applied again.
@@ -105,7 +136,7 @@ ui-quality-testing/
 ├── SKILL.md                 Instructions for the agent
 ├── README.md                This file
 ├── README.zh-CN.md          Chinese
-└── design-qa/               Bundled design-qa 0.2.3
+└── design-qa/               Bundled design-qa (upstream 0.2.3 + local patches)
     ├── SKILL.md             Commands and exit codes
     ├── scripts/             Capture, diff, report, review
     ├── references/          Detail read only when a stage needs it

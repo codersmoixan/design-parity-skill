@@ -12,6 +12,12 @@ import { renderBackfillPlan } from './lib/backfill-plan.mjs';
 import { computeScorecard, explainVerdict, deriveStateResults, rankFindings, resolveOptions, scorecardHeadline } from './lib/ranking.mjs';
 import { isGateIssue, validateConfig, validateReport } from './lib/schema-check.mjs';
 import { assertRunOwnsOutput } from './lib/pass.mjs';
+import {
+  applyHtmlLang,
+  normalizeLocale,
+  reportDocumentTitle,
+  reportLocaleContext,
+} from './lib/report-i18n.mjs';
 import { assertRunOwnsDir, callerRunId, probeReviewServer, readReviewRegistration, registrationAlive } from './lib/run-lock.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -83,6 +89,8 @@ Options:
                        re-ranks every finding
   --run <id>           this pass's run id (default: DESIGN_QA_RUN_ID); refused (exit 5)
                        when the report folder's run lock names another run
+  --locale <zh|en>     report.html UI language (default: en). zh = Chinese chrome;
+                       any other value = English. Finding text stays as filed.
   --quiet              print errors only
   -h, --help           show this help
 
@@ -397,11 +405,13 @@ export function fillTemplate(template, report, assets = {}, context = {}) {
       throw new CliError(`template is missing the ${PLACEHOLDERS[key]} placeholder (see --help for the template contract)`, 1);
     }
   }
+  const locale = normalizeLocale(context?.locale);
+  const ctx = context && typeof context === 'object' ? context : {};
   const values = {
     [PLACEHOLDERS.data]: serializeForScript(report),
     [PLACEHOLDERS.assets]: serializeForScript(assets),
-    [PLACEHOLDERS.context]: serializeForScript(context && typeof context === 'object' ? context : {}),
-    [PLACEHOLDERS.title]: escapeHtml(`Design QA — ${report?.meta?.feature ?? 'report'}`),
+    [PLACEHOLDERS.context]: serializeForScript(ctx),
+    [PLACEHOLDERS.title]: escapeHtml(reportDocumentTitle(report?.meta?.feature ?? 'report', locale)),
   };
   const parts = template.split(PLACEHOLDER_SPLIT_RE); // the placeholders sit at the odd indexes
   const scriptSrc = [];
@@ -417,7 +427,7 @@ export function fillTemplate(template, report, assets = {}, context = {}) {
     const sources = inlineScriptSources(parts.join('')); // the placeholder sits outside every script
     for (const i of scriptSrc) parts[i] = sources;
   }
-  return parts.join('');
+  return applyHtmlLang(parts.join(''), locale);
 }
 
 /**
@@ -469,6 +479,7 @@ async function main(argv) {
     config: { type: 'string' },
     'top-n': { type: 'string' },
     run: { type: 'string' },
+    locale: { type: 'string' },
     quiet: { type: 'boolean' },
   });
   if (values.help) {
@@ -478,6 +489,7 @@ async function main(argv) {
   if (!values.in) throw usageError('--in <report.json> is required (see --help)');
   const log = values.quiet ? () => {} : (msg) => console.log(msg);
   const warn = values.quiet ? () => {} : (msg) => console.error(`warning: ${msg}`);
+  const locale = normalizeLocale(values.locale);
 
   const inFile = path.resolve(values.in);
   const outFile = path.resolve(values.out || path.join(path.dirname(inFile), 'report.html'));
@@ -542,7 +554,7 @@ async function main(argv) {
       if (problem) warn(`image not shown: ${shown(ref)} is ${problem}`);
     }
   }
-  const context = reportContext(inFile);
+  const context = { ...reportContext(inFile), ...reportLocaleContext(locale) };
   if (values.config) {
     // Shared HTML: only paths inside the working directory, like reportPath (never ../../ out of it).
     const configFile = path.resolve(values.config);
@@ -561,7 +573,8 @@ async function main(argv) {
   const sc = report.scorecard;
   log(
     `Rendered ${displayPath(outFile)} — ${scorecardHeadline(sc)} · ${report.findings.length} finding(s)` +
-      (embed ? ` · ${Object.keys(assets).length} image(s) embedded` : ''),
+      (embed ? ` · ${Object.keys(assets).length} image(s) embedded` : '') +
+      (locale === 'zh' ? ' · locale zh' : ''),
   );
   // Its own last reason: nothing compared, or too few states with a result.
   if (sc.verdict === 'INCOMPLETE') warn(`verdict INCOMPLETE: ${explainVerdict(report, options).reasons.at(-1)}`);

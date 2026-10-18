@@ -19,7 +19,7 @@ Compare a built page with its design. The design is the source of truth. Data va
 
 ## Bundled procedure
 
-Design parity is the bundled [design-qa](design-qa/SKILL.md) skill, version 0.2.4 (MIT, Copyright (c) 2026 Dimitris Niavis, https://github.com/NiavisDimitris/skills; local patches for single-frame default, Windows seq, frame-map batch, pre-capture prompts). Do not reimplement capture, diff, audit, findings, the HTML report, review, or backfill.
+Design parity is the bundled [design-qa](design-qa/SKILL.md) skill, based on upstream 0.2.3 (MIT, Copyright (c) 2026 Dimitris Niavis, https://github.com/NiavisDimitris/skills), with local forks/patches in this skill (single-frame default, Windows seq, frame-map batch, pre-capture prompts). Do not reimplement capture, diff, audit, findings, the HTML report, review, or backfill. Do not bump the upstream version number for local changes.
 
 1. Read [design-qa/SKILL.md](design-qa/SKILL.md) and follow it from Start through Finish. Its `Do:` and `Next:` lines override this file.
 2. Resolve paths from the `design-qa` directory next to this file, not from the app repository. When that file says `node scripts/<name>.mjs` or `references/<name>.md`, use `design-qa/scripts/<name>.mjs` and `design-qa/references/<name>.md`. Run the commands from the repository under test. Copy every printed `Next:` command exactly (chained steps use `seq.mjs`, not shell `&&`).
@@ -34,6 +34,8 @@ Accept a Figma file, frame, page, or section URL, a Figma prototype URL, or a co
 A local `.fig` file is not an input. Ask for the Figma or prototype URL instead of decoding the file.
 
 **Scope default:** One Figma frame link + one app URL → fetch that frame only. Use `pass.mjs start --multi-screen` (or `figma-fetch --screens auto`) only when the person wants every sibling screen on the Figma page compared to multiple app routes.
+
+**Report language:** If the person's message is Chinese (contains Chinese characters), pass `--locale zh` on `pass.mjs start` (and on `report` if overriding) so `report.html` UI is Chinese. Any other language → `--locale en` or omit (English). Finding titles and evidence text are not auto-translated.
 
 ## Rules that always apply
 

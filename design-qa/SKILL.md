@@ -28,10 +28,10 @@ Every `pass.mjs` stage ends with `Next: <command>`. Do the `Do:` lines first, th
 `--agent figma-mcp=yes` (or `ticket-mcp=yes`) only if you can call those tools now: listed, loaded and signed in. Then:
 
 ```bash
-node scripts/pass.mjs start --feature <slug> [--design '<url>'] [--prototype '<url>'] [--ticket <KEY>] [--url '<app-url>'] [--screen <id>=<prototype url>,<app url>]... [--multi-screen] --agent figma-mcp=yes|no --agent ticket-mcp=yes|no --label '<agent>/<model>'
+node scripts/pass.mjs start --feature <slug> [--design '<url>'] [--prototype '<url>'] [--ticket <KEY>] [--url '<app-url>'] [--screen <id>=<prototype url>,<app url>]... [--multi-screen] [--locale zh|en] --agent figma-mcp=yes|no --agent ticket-mcp=yes|no --label '<agent>/<model>'
 ```
 
-`<slug>` is the ticket key, else a short kebab-case name. `--design` takes a Figma link or a known prototype host; `--prototype` any other prototype URL. `--url` may be any page of the app. `--multi-screen` fetches every Figma frame beside the linked node (otherwise only the linked frame). The output names the report folder `<dir>` and the run id `<id>`. Pass `--dir <dir> --run <id>` to every later command, and write only inside `<dir>`.
+`<slug>` is the ticket key, else a short kebab-case name. `--design` takes a Figma link or a known prototype host; `--prototype` any other prototype URL. `--url` may be any page of the app. `--multi-screen` fetches every Figma frame beside the linked node (otherwise only the linked frame). **`--locale`:** if the person's request is in Chinese (contains Chinese characters), pass `--locale zh` so `report.html` chrome is Chinese; for any other language pass `--locale en` (or omit; default English). Finding text stays as filed. The output names the report folder `<dir>` and the run id `<id>`. Pass `--dir <dir> --run <id>` to every later command, and write only inside `<dir>`.
 
 | Exit | Do |
 |---|---|
