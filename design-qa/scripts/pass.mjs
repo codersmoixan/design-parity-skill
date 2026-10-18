@@ -217,7 +217,9 @@ Options:
   --top <n>          fix-now size (render-report.mjs --top-n)
   --locale <zh|en>   start / report: report.html UI language. zh = Chinese chrome; anything
                      else = English. The agent sets zh when the person's request is Chinese;
-                     otherwise en. Stored on pass.json and passed to render-report.mjs.
+                     otherwise en. With zh, the agent authors Chinese finding titles in
+                     findings.json (cards show filed text; scripts do not translate).
+                     Stored on pass.json and passed to render-report.mjs.
   --ci               start: never ask (setup.mjs check --ci); report then defaults to --mode ci
   --recapture [<s>]  evidence: capture these app states again (comma-separated), or every one
 
@@ -670,7 +672,11 @@ async function start(o) {
   pass.stages.start.multiScreen = Boolean(o['multi-screen'] || pass.stages.start.multiScreen);
   pass.stages.start.locale = pass.locale;
   writePass(ctx.dir, pass);
-  L.push(`Report locale: ${pass.locale} (report.html UI)`);
+  L.push(
+    pass.locale === 'zh'
+      ? 'Report locale: zh (report.html UI + Chinese finding titles in findings.json)'
+      : `Report locale: ${pass.locale} (report.html UI)`,
+  );
   if (screens.length) {
     // The screens go to this pass's states.json (merged over what is there), the drivers stay.
     const file = path.join(ctx.dir, PASS_STATES_FILE);

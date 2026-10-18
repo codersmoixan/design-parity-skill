@@ -30,6 +30,17 @@ Required: `ref`, `title`, `ledger`, `state`, `severity`, `region`, `expected`, `
 - `expected`, `actual`: `{ "value", "token" }`. Fill both tokens on a token mismatch (`actual.token: null`: hardcoded). Add `actual.source { file, line, snippet }` when known.
 - `fix`: `{ "summary", "files", "effort" }` (effort 1: one line; 5: cross-cutting); `files` defaults to the source file. Leave `element` out on a pinned finding: the pin fills it. `acRef`: the ticket criterion, if any.
 
+### Language
+
+Match the pass locale (`pass.locale` / `--locale` from start). Scripts only localize report chrome; finding cards show the `title` (and other free text) you filed.
+
+| Locale | Write in |
+|---|---|
+| `zh` | Chinese `title` (required). Prefer Chinese for free-text `region`, `expected.value`, `actual.value`, and `fix.summary`. Example title: `页面标题为 28px，应为 heading/lg（32px）`. |
+| `en` or omitted | English (default). Example title: `Page title is 28px instead of heading/lg`. |
+
+Do not change: `ref`, ledger/severity/resolution enums, selectors, token names, file paths, or quoted strings copied from the live page or Figma. Do not add a separate translation pass or re-capture for language alone.
+
 One finding per divergence (one element, one property, one state).
 
 ## Severity

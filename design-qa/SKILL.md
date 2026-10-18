@@ -31,7 +31,7 @@ Every `pass.mjs` stage ends with `Next: <command>`. Do the `Do:` lines first, th
 node scripts/pass.mjs start --feature <slug> [--design '<url>'] [--prototype '<url>'] [--ticket <KEY>] [--url '<app-url>'] [--screen <id>=<prototype url>,<app url>]... [--multi-screen] [--locale zh|en] --agent figma-mcp=yes|no --agent ticket-mcp=yes|no --label '<agent>/<model>'
 ```
 
-`<slug>` is the ticket key, else a short kebab-case name. `--design` takes a Figma link or a known prototype host; `--prototype` any other prototype URL. `--url` may be any page of the app. `--multi-screen` fetches every Figma frame beside the linked node (otherwise only the linked frame). **`--locale`:** if the person's request is in Chinese (contains Chinese characters), pass `--locale zh` so `report.html` chrome is Chinese; for any other language pass `--locale en` (or omit; default English). Finding text stays as filed. The output names the report folder `<dir>` and the run id `<id>`. Pass `--dir <dir> --run <id>` to every later command, and write only inside `<dir>`.
+`<slug>` is the ticket key, else a short kebab-case name. `--design` takes a Figma link or a known prototype host; `--prototype` any other prototype URL. `--url` may be any page of the app. `--multi-screen` fetches every Figma frame beside the linked node (otherwise only the linked frame). **`--locale`:** if the person's request is in Chinese (contains Chinese characters), pass `--locale zh` so `report.html` chrome is Chinese; for any other language pass `--locale en` (or omit; default English). With `--locale zh`, when you write `findings.json` (step 4), author each finding `title` in Chinese (and prefer Chinese for free-text `region` / `expected` / `actual` / `fix.summary`); `ref`, enums, selectors, tokens, and quoted page/design copy stay as-is. Scripts do not translate titles — they display what you filed. The output names the report folder `<dir>` and the run id `<id>`. Pass `--dir <dir> --run <id>` to every later command, and write only inside `<dir>`.
 
 | Exit | Do |
 |---|---|
@@ -72,7 +72,7 @@ It captures every designed state over the whole page, diffs and audits; reruns r
 
 ### 4. Findings: your judgment
 
-Inspect all side-by-side tiles and Figma/code values; record review digests (references/worklist.md). Read `<dir>/worklist.md` and write `<dir>/findings.json` (references/filing.md). `Next:` is `pass.mjs report … --check` (it works before the file exists): it lists every audit candidate and compare FAIL row still to decide, one line each. Every item, candidate and row ends as a finding or a rejection with a reason. Pin with a worklist key, an audit key or a selector: never compute pixel boxes. Exact values: `inspect.mjs --dir <dir> --item <key>`.
+Inspect all side-by-side tiles and Figma/code values; record review digests (references/worklist.md). Read `<dir>/worklist.md` and write `<dir>/findings.json` (references/filing.md). If this pass used `--locale zh`, write each finding `title` in Chinese (review cards show that string); prefer Chinese for other free-text finding fields too — see filing.md "Language". `Next:` is `pass.mjs report … --check` (it works before the file exists): it lists every audit candidate and compare FAIL row still to decide, one line each. Every item, candidate and row ends as a finding or a rejection with a reason. Pin with a worklist key, an audit key or a selector: never compute pixel boxes. Exact values: `inspect.mjs --dir <dir> --item <key>`.
 
 ### 5. Report
 

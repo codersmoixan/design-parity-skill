@@ -45,7 +45,9 @@ A local `.fig` file is not an input. Ask for the Figma or prototype URL instead 
 
 **Scope default:** One Figma frame link + one app URL → fetch that frame only. Use `pass.mjs start --multi-screen` (or `figma-fetch --screens auto`) only when the person wants every sibling screen on the Figma page compared to multiple app routes.
 
-**Report language:** If the person's message is Chinese (contains Chinese characters), pass `--locale zh` on `pass.mjs start` (and on `report` if overriding) so `report.html` UI is Chinese. Any other language → `--locale en` or omit (English). Finding titles and evidence text are not auto-translated.
+**Report language:** If the person's message is Chinese (contains Chinese characters), pass `--locale zh` on `pass.mjs start` (and on `report` if overriding) so `report.html` UI is Chinese. Any other language → `--locale en` or omit (English).
+
+**Finding card language (agent-authored, not machine translation):** When `--locale zh` (Chinese request), write every finding's `title` in Chinese in `findings.json` — that is what the review cards show. Also prefer Chinese for `region`, `expected.value` / `actual.value` prose, and `fix.summary` when those are free text. Keep `ref`, ledger enums, selectors, tokens, and quoted UI copy from the page/design unchanged. When locale is `en`, keep those fields in English. Do **not** add an extra translate step or re-run capture/diff for language alone — titles are written once while filing findings.
 
 ## Figma access (token first)
 

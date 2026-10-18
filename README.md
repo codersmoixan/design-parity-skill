@@ -87,7 +87,7 @@ Or limit to a few screens and ignore the rest. Without “multi-screen”, the p
 
 ## Report language (report.html)
 
-If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chrome (tabs, buttons, labels) is Chinese. Any other language gets an English report (`--locale en` or omit). Finding titles and evidence text are not auto-translated.
+If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chrome (tabs, buttons, labels) is Chinese. It also authors each finding `title` in Chinese in `findings.json` (what the review cards show; prefer Chinese for free-text `region` / expected / actual / `fix.summary` too). Any other language gets an English report and English titles (`--locale en` or omit). Scripts do not machine-translate titles; `ref`, enums, selectors, tokens, and quoted page/design copy stay as stored. This does **not** add capture, diff, or audit runtime — only the language used when filing findings.
 
 ## Before the first run
 

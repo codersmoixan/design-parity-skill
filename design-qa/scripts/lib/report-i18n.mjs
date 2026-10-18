@@ -1,7 +1,8 @@
 /**
  * Report UI locale for report.html.
  * zh → Chinese chrome; everything else → English.
- * Finding titles, evidence copy, and agent paste blocks stay as stored in the report.
+ * Finding titles, evidence copy, and agent paste blocks stay as stored in the report
+ * (with --locale zh the agent should author Chinese titles when writing findings.json).
  */
 
 /** Han / CJK Unified Ideographs (and compatibility) — used to detect a Chinese user query. */

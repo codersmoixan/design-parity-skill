@@ -90,7 +90,8 @@ Options:
   --run <id>           this pass's run id (default: DESIGN_QA_RUN_ID); refused (exit 5)
                        when the report folder's run lock names another run
   --locale <zh|en>     report.html UI language (default: en). zh = Chinese chrome;
-                       any other value = English. Finding text stays as filed.
+                       any other value = English. Finding titles stay as filed
+                       (agent writes Chinese titles when pass locale is zh).
   --quiet              print errors only
   -h, --help           show this help
 
