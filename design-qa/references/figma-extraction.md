@@ -30,13 +30,13 @@ What `pass.mjs evidence` needs:
 
 ## The ladder
 
-Use the first rung that works.
+Use the first rung that works. **Prefer REST when `FIGMA_TOKEN` is set** (shell or project `.env` / `.env.local` loaded by scripts): do not climb to MCP first, and do not authenticate Figma MCP for that pass.
 
 | Rung | Needs | `meta.tools.figmaAccess` |
 |---|---|---|
-| 1. Figma MCP | The Figma MCP tools, signed in | `mcp` (set from the spec) |
-| 2. Dev Mode MCP | The Figma desktop app open with the file loaded (never in CI) | set `pass.tools.figmaAccess: "devmode-mcp"` in `findings.json` |
-| 3. REST | `FIGMA_TOKEN` already in the environment | `rest` (set from the spec) |
+| 1. REST | `FIGMA_TOKEN` in the environment (or loaded from project `.env` / `.env.local`) | `rest` (set from the spec) |
+| 2. Figma MCP | No token; Figma MCP tools signed in | `mcp` (set from the spec) |
+| 3. Dev Mode MCP | No token; Figma desktop app open with the file loaded (never in CI) | set `pass.tools.figmaAccess: "devmode-mcp"` in `findings.json` |
 | 4. Manual | Values and 1x PNGs from the person | set `pass.tools.figmaAccess: "manual"`, plus a degradation |
 
 ### 1. Figma MCP

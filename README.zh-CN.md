@@ -105,7 +105,7 @@
 - Node.js 20 或更高。
 - **工作目录** = 被测仓库（跑命令、写报告）；**技能目录** `design-qa` = 工具依赖（`pixelmatch`、`pngjs`、`playwright`），不改被测仓库的 `package.json`。
 - 缺依赖时跑 `ensure-deps.mjs`：已设 `DESIGN_QA_AUTO_INSTALL=1`，或曾同意过（`~/.design-qa/auto-install.json`）则直接安装；否则只问一次，同意后用 `ensure-deps.mjs --grant`。
-- Figma 可以用已登录的 Figma 连接读取；没有连接时使用 `FIGMA_TOKEN`。推荐写在被测项目根目录的 `.env` / `.env.local`（脚本会自动加载，不覆盖已有环境变量）；也可在终端设置。不要把 token 写进对话或提交进仓库；若已误发，请在 Figma 轮换作废。关闭加载：`DESIGN_QA_LOAD_ENV=0`。
+- 优先使用被测项目根目录 `.env` / `.env.local`（或终端）中的 `FIGMA_TOKEN`：脚本会自动加载并用 REST `figma-fetch` 拉设计，**有 token 时不要启用 Figma MCP**。仅在没有 token 时才用已登录的 Figma MCP。不要把 token 写进对话或提交进仓库；若已误发，请在 Figma 轮换作废。关闭加载：`DESIGN_QA_LOAD_ENV=0`。
 - 公开/预发环境若有 Cookie 横幅或设计为登录态顶栏，开始捕获前按提示配置隐藏或 `save-session`。
 
 脚本从被测项目的目录运行。`design-qa/SKILL.md` 里的 `node scripts/...` 实际指向本 skill 的 `design-qa/scripts/`。Windows PowerShell 下链式步骤使用 `seq.mjs`，不要改成 `&&`。

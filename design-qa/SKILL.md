@@ -25,7 +25,7 @@ Every `pass.mjs` stage ends with `Next: <command>`. Do the `Do:` lines first, th
 
 ### 1. Start
 
-`--agent figma-mcp=yes` (or `ticket-mcp=yes`) only if you can call those tools now: listed, loaded and signed in. Then:
+**Figma agent flag (token first):** If the repository under test has `FIGMA_TOKEN` in `.env` / `.env.local`, or it is already set in the shell, pass `--agent figma-mcp=no` and use REST (`figma-fetch.mjs`). Do not authenticate Figma MCP, call `get_metadata` / `get_screenshot`, or set `figma-mcp=yes` when a token is available — scripts load project env automatically (never print the value). Only when there is no token may you pass `--agent figma-mcp=yes` (tools listed, loaded and signed in). Same rule for `ticket-mcp` vs `JIRA_*`. Then:
 
 ```bash
 node scripts/pass.mjs start --feature <slug> [--design '<url>'] [--prototype '<url>'] [--ticket <KEY>] [--url '<app-url>'] [--screen <id>=<prototype url>,<app url>]... [--multi-screen] [--locale zh|en] --agent figma-mcp=yes|no --agent ticket-mcp=yes|no --label '<agent>/<model>'
@@ -46,9 +46,9 @@ node scripts/pass.mjs start --feature <slug> [--design '<url>'] [--prototype '<u
 The `Do:` lines say which way applies:
 
 - **Coded prototype.** One screen, no extra states: nothing to do. Several screens: `start --screen <id>=<prototype url>,<app url>` once per screen. Extra states: add them to `<dir>/states.json` before `evidence`, keyed `<screen>/<state>` (`"cart/empty": { "query": "?empty=1" }`; references/prototype-source.md). `start` prints a skeleton.
-- **Figma with `FIGMA_TOKEN`.** Run the printed `figma-fetch.mjs` command (via `seq.mjs` when chained with evidence). **Default is the linked frame only.** Use `start --multi-screen` or `figma-fetch --screens auto` only for a whole page/section with several app routes. Never paste the token into chat or the command line; it must already be in the environment.
+- **Figma with `FIGMA_TOKEN` (preferred).** When the token is in the shell or project `.env` / `.env.local`, run the printed `figma-fetch.mjs` command (via `seq.mjs` when chained with evidence). Skip the MCP path even if Figma tools are available. **Default is the linked frame only.** Use `start --multi-screen` or `figma-fetch --screens auto` only for a whole page/section with several app routes. Never paste the token into chat or the command line.
 - **Pre-capture chrome.** On a remote (preview/staging/prod) app URL, `start` exits 3 with an **Ask the person** block (cookie/consent/chat hide + signed-in header). Copy that block into chat immediately; after answers, write `pre-capture-answers.json` and run `Next:` (`ack-pre-capture`). references/browser-capture.md.
-- **Figma MCP, no token.**
+- **Figma MCP (only when there is no token).**
   1. `get_metadata` on the widest node linked (the section or page), saved as returned to `<dir>/evidence/metadata.xml`.
   2. `node scripts/figma-mcp-spec.mjs --metadata <dir>/evidence/metadata.xml --url '<figma-url>' --out <dir>/evidence` prints each state's `maxDimension`.
   3. Per state: `get_screenshot` with it, then the printed `figma-mcp-spec.mjs --spec … --state …` command with its `--asset-url '<url>'` (`--screenshot-meta <file>`: optional). Only exact 1x is accepted; never upscale an inline screenshot.

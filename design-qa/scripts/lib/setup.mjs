@@ -1344,8 +1344,8 @@ export function buildCheck({ root, configPath, config, configProblem = null, con
     row(
       'figma',
       mcp === false ? false : null,
-      `FIGMA_TOKEN is not set${mcp === undefined ? ' and the agent has not said whether it has Figma tools (agentChecks figma-mcp)' : ' and the agent has no Figma tools'}${inDotEnv ? `; it is named in ${discovered.envFiles.join(', ')}, which the agent never reads` : ''}`,
-      'Set FIGMA_TOKEN yourself in the terminal the agent runs in (or connect Figma’s tools to the agent); never paste it in chat. A coded prototype needs neither.',
+      `FIGMA_TOKEN is not set${mcp === undefined ? ' and the agent has not said whether it has Figma tools (agentChecks figma-mcp)' : ' and the agent has no Figma tools'}${inDotEnv ? `; named in ${discovered.envFiles.join(', ')} but not loaded into this process (empty value, or DESIGN_QA_LOAD_ENV=0)` : ''}`,
+      'Prefer FIGMA_TOKEN in the project .env / .env.local (scripts load it automatically) or in the agent terminal; only if there is no token, connect Figma MCP. Never paste the token in chat. A coded prototype needs neither.',
     );
   }
 
@@ -1386,10 +1386,15 @@ export function buildCheck({ root, configPath, config, configProblem = null, con
   const agentChecks = [
     {
       id: 'figma-mcp',
-      question: 'Do you have Figma tools in your tool list (an MCP server with tools such as get_metadata, get_screenshot or get_design_context)?',
+      question: tokenSet
+        ? 'FIGMA_TOKEN is set (shell or project .env): skip Figma MCP and use REST figma-fetch. Confirm with --agent figma-mcp=no.'
+        : 'Do you have Figma tools in your tool list (an MCP server with tools such as get_metadata, get_screenshot or get_design_context)?',
       lookFor: ['get_metadata', 'get_screenshot', 'get_design_context', 'get_variable_defs'],
-      answered: mcp === undefined ? null : mcp ? 'yes' : 'no',
-      howToAnswer: 'Look at your own tool list, then run check again with --agent figma-mcp=yes|no.',
+      // Token present → MCP not required; treat as answered "no" so start does not nag.
+      answered: tokenSet ? 'no' : mcp === undefined ? null : mcp ? 'yes' : 'no',
+      howToAnswer: tokenSet
+        ? 'FIGMA_TOKEN wins: pass --agent figma-mcp=no and run figma-fetch.mjs (do not authenticate Figma MCP).'
+        : 'Look at your own tool list, then run check again with --agent figma-mcp=yes|no. Prefer putting FIGMA_TOKEN in the project .env instead.',
     },
     {
       id: 'ticket-mcp',

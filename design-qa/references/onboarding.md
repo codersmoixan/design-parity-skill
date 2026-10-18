@@ -38,7 +38,7 @@ Keep the script's wording; it is already plain. Never show the person internal n
 
 - Never ask for, repeat or store a password, token, cookie or session.
 - A token question only asks whether the person has set the variable (`writes: "env:NAME"`). They set it themselves; never send it to `apply`.
-- **FIGMA_TOKEN:** ask "Is FIGMA_TOKEN already set in this terminal?" If not, tell them to create a Figma personal access token and set it locally (PowerShell: `$env:FIGMA_TOKEN = '…'` in their own terminal; bash: `export FIGMA_TOKEN=…`). Never put the value in chat, in `answers.json`, or on a command line that agents retype.
+- **FIGMA_TOKEN:** Prefer the project `.env` / `.env.local` (scripts load it). If set, the agent must pass `--agent figma-mcp=no` and use REST — do not ask to connect Figma MCP. If unset, ask whether they can put a token in `.env` first; only then fall back to MCP. Never put the value in chat, in `answers.json`, or on a command line that agents retype.
 - If someone pastes a secret anyway, do not repeat or save it. Tell them it is now in the chat history and should be replaced (rotate the Figma token).
 - **Sign-in** (`sign-in`, `writes: "action:save-session"`): run `node scripts/setup.mjs save-session` as a long-running command and say "A browser window is opening; sign in there as usual." It saves the session outside the project, checks it, and records only its path.
 - **Cookie / chrome:** when the app URL is remote (preview/staging/prod), `start` exits 3 with an Ask-the-person block — put it in the chat reply before running Next (references/browser-capture.md, "Before the first live capture").

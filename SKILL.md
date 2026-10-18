@@ -47,6 +47,14 @@ A local `.fig` file is not an input. Ask for the Figma or prototype URL instead 
 
 **Report language:** If the person's message is Chinese (contains Chinese characters), pass `--locale zh` on `pass.mjs start` (and on `report` if overriding) so `report.html` UI is Chinese. Any other language → `--locale en` or omit (English). Finding titles and evidence text are not auto-translated.
 
+## Figma access (token first)
+
+Before `pass.mjs start`, decide Figma access in this order — do **not** authenticate or call Figma MCP when a token is available:
+
+1. **Repo `.env` / `.env.local` has `FIGMA_TOKEN`** (or it is already set in the shell) → pass `--agent figma-mcp=no`. Design fetch is REST via the printed `figma-fetch.mjs` command. Scripts load those files automatically when unset in the shell; never open `.env` to print or paste the value.
+2. **No token** → only then use Figma MCP (`--agent figma-mcp=yes` if tools are listed, loaded, and signed in), following the MCP path in `design-qa/SKILL.md`.
+3. Never prefer MCP over a working token. If both exist, ignore MCP and use `figma-fetch`.
+
 ## Rules that always apply
 
 - Change code to match the design. Do not change the design during a parity pass.

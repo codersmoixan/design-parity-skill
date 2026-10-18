@@ -647,9 +647,24 @@ async function start(o) {
   }
   const answers = `${ctx.rel}/answers.json`;
   const prototypePass = design?.kind === 'prototype' || Boolean(surfaceName && config?.surfaces?.[surfaceName]?.prototype);
-  // A coded prototype needs no Figma tools: their check is not shown.
-  const unanswered = (check.agentChecks ?? []).map((a) => a.id).filter((id) => ['figma-mcp', 'ticket-mcp'].includes(id) && !agent[id] && !(prototypePass && id === 'figma-mcp'));
-  if (unanswered.length && !ci) L.push(`Agent checks: ${unanswered.join(', ')} → add --agent ${unanswered.map((id) => `${id}=yes|no`).join(' --agent ')} (yes only if you can call those tools now: listed, loaded and signed in)`);
+  // Token in shell or project .env wins over Figma MCP: no MCP auth / get_metadata path.
+  const figmaTokenSet = Boolean(process.env.FIGMA_TOKEN);
+  if (figmaTokenSet && agent['figma-mcp'] === 'yes') {
+    L.push('Figma: FIGMA_TOKEN is set (shell or project .env) → REST figma-fetch; ignoring --agent figma-mcp=yes');
+  } else if (figmaTokenSet) {
+    L.push('Figma: FIGMA_TOKEN is set (shell or project .env) → REST figma-fetch (Figma MCP not used)');
+  }
+  // A coded prototype needs no Figma tools; a token also skips the figma-mcp agent check.
+  const unanswered = (check.agentChecks ?? [])
+    .map((a) => a.id)
+    .filter(
+      (id) =>
+        ['figma-mcp', 'ticket-mcp'].includes(id) &&
+        !agent[id] &&
+        !(prototypePass && id === 'figma-mcp') &&
+        !(figmaTokenSet && id === 'figma-mcp'),
+    );
+  if (unanswered.length && !ci) L.push(`Agent checks: ${unanswered.join(', ')} → add --agent ${unanswered.map((id) => `${id}=yes|no`).join(' --agent ')} (yes only if you can call those tools now: listed, loaded and signed in; for Figma use figma-mcp=no when FIGMA_TOKEN is in .env)`);
   if (check.ready && !confirm && !ci && componentCheckOff(config)) L.push(componentsOff(config));
   pass.stages.start.quick = Boolean(o.quick);
   pass.stages.start.multiScreen = Boolean(o['multi-screen'] || pass.stages.start.multiScreen);
@@ -862,9 +877,14 @@ function designStep(ctx) {
   const scopeDo = multiScreen
     ? ['Fetching every frame beside the linked node (--multi-screen / --screens auto). If evidence stops on unmapped frames and this pass is only one app URL, re-fetch without --screens auto, or run frame-map-from-census.mjs --ignore-unmapped.']
     : ['Fetching the linked frame only (default). For a whole Figma page/section with several app routes, re-run start with --multi-screen (or figma-fetch with --screens auto).'];
-  const tokenDo = 'Get Figma access first: the person sets FIGMA_TOKEN in the project `.env` / `.env.local` or in this terminal (never paste the token into chat or into a command line). Or connect Figma MCP and re-run start with --agent figma-mcp=yes.';
+  const tokenDo = 'Get Figma access first: the person sets FIGMA_TOKEN in the project .env / .env.local or in this terminal (never paste the token into chat or into a command line). Only if there is no token: connect Figma MCP and re-run start with --agent figma-mcp=yes.';
+  // Prefer REST whenever a token is loaded — even if the agent passed figma-mcp=yes.
   if (process.env.FIGMA_TOKEN) {
-    return { what: `Figma ${oneLine(figmaUrl)} (FIGMA_TOKEN is set)${multiScreen ? '; multi-screen' : '; linked frame only'}`, do: [...ticketDo, ...scopeDo], cmd: rest };
+    return {
+      what: `Figma ${oneLine(figmaUrl)} (FIGMA_TOKEN is set; REST)${multiScreen ? '; multi-screen' : '; linked frame only'}`,
+      do: [...ticketDo, ...scopeDo, ...(agent['figma-mcp'] === 'yes' ? ['FIGMA_TOKEN takes priority over Figma MCP: run figma-fetch (do not call get_metadata).'] : [])],
+      cmd: rest,
+    };
   }
   if (agent['figma-mcp'] === 'yes') {
     return {
