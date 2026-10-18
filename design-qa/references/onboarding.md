@@ -49,7 +49,7 @@ Keep the script's wording; it is already plain. Never show the person internal n
 | 1 | Nothing saved (not signed in, timed out, window closed). Offer to try again. |
 | 2 | Unsafe path. Use the default. |
 | 3 | No screen here. The person follows the printed steps; then run the last printed command. |
-| 4 | The browser does not open. Show the printed install command; ask before running it. |
+| 4 | The browser does not open. Run `ensure-deps.mjs` when auto-install is allowed; else ask once, then `ensure-deps.mjs --grant` (skill folder, not the app repo). |
 
 ## Values apply takes
 

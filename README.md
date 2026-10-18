@@ -92,7 +92,8 @@ If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chro
 ## Before the first run
 
 - Node.js 20 or newer.
-- Install `pixelmatch`, `pngjs`, and `playwright` in the `design-qa` directory. The agent asks before installing.
+- **Working directory** = the repository under test (commands and reports). **Skill folder** `design-qa` = tool deps (`pixelmatch`, `pngjs`, `playwright`); the app's `package.json` is not modified.
+- Missing packages: run `ensure-deps.mjs`. With `DESIGN_QA_AUTO_INSTALL=1` or a prior consent file (`~/.design-qa/auto-install.json`), install without asking; otherwise ask once, then `ensure-deps.mjs --grant`.
 - Read Figma through a signed-in Figma connection, or with `FIGMA_TOKEN` when that connection is unavailable. Set the token in your own terminal (do not paste it into chat; rotate it if you already did). Sign-in opens in a window.
 - On public/staging URLs, answer once about cookie banners and signed-in chrome before the first capture.
 

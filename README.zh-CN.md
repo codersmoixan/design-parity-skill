@@ -103,7 +103,8 @@
 ## 调用前
 
 - Node.js 20 或更高。
-- 在 `design-qa` 目录安装依赖：`pixelmatch`、`pngjs`、`playwright`。安装前会先确认。
+- **工作目录** = 被测仓库（跑命令、写报告）；**技能目录** `design-qa` = 工具依赖（`pixelmatch`、`pngjs`、`playwright`），不改被测仓库的 `package.json`。
+- 缺依赖时跑 `ensure-deps.mjs`：已设 `DESIGN_QA_AUTO_INSTALL=1`，或曾同意过（`~/.design-qa/auto-install.json`）则直接安装；否则只问一次，同意后用 `ensure-deps.mjs --grant`。
 - Figma 可以用已登录的 Figma 连接读取；没有连接时使用 `FIGMA_TOKEN`。在**本机终端**自行设置（PowerShell：`$env:FIGMA_TOKEN = '…'`），不要把 token 或密码写进对话；若已误发，请在 Figma 轮换作废。
 - 公开/预发环境若有 Cookie 横幅或设计为登录态顶栏，开始捕获前按提示配置隐藏或 `save-session`。
 

@@ -14,7 +14,7 @@ Arguments can combine a design link, a ticket key (`ABC-123`), a surface name fr
 
 ## Phase 0: setup and the run lock
 
-1. `node scripts/doctor.mjs`: Node 20+, the packages, the browser. Anything missing comes with the command; ask before `npx playwright install chromium` (about 100 MB).
+1. `node scripts/doctor.mjs`: Node 20+, the packages, the browser. Anything missing points at `ensure-deps.mjs` (skill folder only). Run it when auto-install is allowed; otherwise ask once, then `ensure-deps.mjs --grant` (Chromium ~100 MB).
 2. `node scripts/setup.mjs check --json …` and, after the questions, `setup.mjs apply` (references/onboarding.md).
 3. `node scripts/run.mjs start --dir qa-reports/<slug> --label '<agent>/<model>'`. It prints the folder to use and the run id: pass `--run <id>` to every script below (or set `DESIGN_QA_RUN_ID`). A busy folder gives you a sibling folder (exit 3): use it. An earlier pass is moved to `<dir>/archive/`, never deleted; `--resume` continues your own pass.
 4. Read the project's design rules, token map, known drifts and component catalog (`designSystem.*`).

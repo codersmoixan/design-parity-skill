@@ -1238,7 +1238,7 @@ async function evidence(o, { dryRun = false } = {}) {
         const tried = oneLine(url ?? (side === 'design' ? prototypeUrl : ctx.config?.app?.baseUrl) ?? 'the configured address');
         const why = relevantLines(r.stderr || r.stdout, 1).join('').replace(/^capture\.mjs: error: /, '');
         const advice = {
-          4: [`The browser does not start: ask the person, then run ${command('npx', 'playwright', 'install', 'chromium')} in ${show(SKILL_DIR)} (a one-time download of about 100 MB).`],
+          4: [`The browser does not start: run ${scriptCmd('ensure-deps.mjs')} when auto-install is allowed, else ask once and run ${scriptCmd('ensure-deps.mjs', '--grant')} (skill folder ${show(SKILL_DIR)}, ~100 MB Chromium; does not change the app repo).`],
           5: [`${side === 'design' ? 'The prototype' : 'The app'} at ${tried} did not answer as a page (${why}). Start it (config app.start) or give the right address with --url, then run the next command.`],
           3: ['The screenshots are not at device scale 1: see the log.'],
         }[r.code] ?? ['Fix what the log says.'];
@@ -1305,7 +1305,7 @@ async function evidence(o, { dryRun = false } = {}) {
       if (r.missing) return { status: 'failed', message: missingScript('diff.mjs') };
       const out = readJsonOrNull(path.join(base, 'diff.json'));
       if (!out || r.code === 4 || (r.code !== 0 && r.code !== 1 && !isObj(out?.results))) {
-        return { status: 'failed', code: r.code, log: r.log, message: `pixel diff of ${screen.id ?? 'the screen'} failed (exit ${r.code}): ${relevantLines(r.stderr, 2).join('; ')}`, do: [r.code === 4 ? `Run npm install in ${show(SKILL_DIR)}.` : 'Fix what the log says.'] };
+        return { status: 'failed', code: r.code, log: r.log, message: `pixel diff of ${screen.id ?? 'the screen'} failed (exit ${r.code}): ${relevantLines(r.stderr, 2).join('; ')}`, do: [r.code === 4 ? `Run ${scriptCmd('ensure-deps.mjs')} (or --grant once); installs in ${show(SKILL_DIR)}, not the app repo.` : 'Fix what the log says.'] };
       }
       // A design image exported at another scale (2× the frame): its own stop, with the fix.
       const scaled = Object.entries(isObj(out.results) ? out.results : {}).filter(([, d]) => d?.error && (d.exitCode === 2 || /×|scale/i.test(d.error)));

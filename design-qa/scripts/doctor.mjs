@@ -38,7 +38,11 @@ Options:
   --quiet   print only problems
   -h, --help
 
-Environment: DESIGN_QA_BROWSER_CHANNEL (as capture.mjs).
+Environment: DESIGN_QA_BROWSER_CHANNEL (as capture.mjs); DESIGN_QA_AUTO_INSTALL
+(see ensure-deps.mjs) for unattended skill-folder installs.
+
+When packages are missing, prefer \`node scripts/ensure-deps.mjs\` (or \`--grant\` once)
+over a bare \`npm install\`: installs stay in the skill folder, not the app repo.
 
 Exit codes: 0 ready · 1 something is missing (the fix is printed)`;
 }
@@ -75,6 +79,12 @@ function withTimeout(promise, ms, what, onLate) {
 export async function browserCheck(playwright, { skillDir, env = process.env, timeoutMs = LAUNCH_TIMEOUT_MS } = {}) {
   const channel = env.DESIGN_QA_BROWSER_CHANNEL || undefined;
   const what = channel ? `the "${channel}" browser (DESIGN_QA_BROWSER_CHANNEL)` : "Playwright's headless Chromium";
+  const { autoInstallAllowed } = await import('./lib/deps.mjs');
+  const { scriptCommand } = await import('./lib/args.mjs');
+  const ensure = scriptCommand('ensure-deps.mjs');
+  const ensureFix = autoInstallAllowed({ env }).allowed
+    ? `${ensure} --force`
+    : `${ensure} --grant` + ' (ask once; skill folder only, ~100 MB Chromium)';
   const inSkill = (cmd) => `cd "${skillDir}" && ${cmd}`;
   let browser = null;
   try {
@@ -89,13 +99,13 @@ export async function browserCheck(playwright, { skillDir, env = process.env, ti
     const message = firstLine(err && err.message);
     let fix;
     if (/missing (system )?dependencies|install-deps/i.test(String(err && err.message))) {
-      fix = inSkill(`npx playwright install-deps chromium${channel ? '' : ' && npx playwright install chromium'}`);
+      fix = inSkill(`npx playwright install-deps chromium`) + `; then ${ensureFix}`;
     } else if (channel && /unsupported .*channel/i.test(message)) {
-      fix = `set DESIGN_QA_BROWSER_CHANNEL to a Playwright channel such as chrome or msedge, or unset it and use Playwright's Chromium: ${inSkill('npx playwright install chromium')}`;
+      fix = `set DESIGN_QA_BROWSER_CHANNEL to a Playwright channel such as chrome or msedge, or unset it and use Playwright's Chromium: ${ensureFix}`;
     } else if (channel) {
-      fix = inSkill(`npx playwright install ${channel}`) + ` (or install ${channel} yourself, or unset DESIGN_QA_BROWSER_CHANNEL to use Playwright's Chromium)`;
+      fix = `${ensureFix} (or install ${channel} yourself / unset DESIGN_QA_BROWSER_CHANNEL)`;
     } else {
-      fix = inSkill('npx playwright install chromium') + ' (about 100 MB, one time; `npx playwright install --only-shell chromium` downloads only the headless shell capture uses)';
+      fix = ensureFix;
     }
     return { name: 'chromium', ok: false, detail: `${what} does not launch: ${message}`, fix };
   }
@@ -108,7 +118,13 @@ export async function browserCheck(playwright, { skillDir, env = process.env, ti
  * checked") and does not count against ready.
  */
 export async function check({ launchBrowser = true } = {}) {
-  const { DEPENDENCIES, SKILL_DIR, isMissingModule } = await import('./lib/deps.mjs');
+  const { DEPENDENCIES, SKILL_DIR, isMissingModule, autoInstallAllowed } = await import('./lib/deps.mjs');
+  const { scriptCommand } = await import('./lib/args.mjs');
+  const ensure = scriptCommand('ensure-deps.mjs');
+  const ensureGrant = `${ensure} --grant`;
+  const ensureFix = autoInstallAllowed().allowed
+    ? ensure
+    : `${ensureGrant} (ask once; skill folder only, not the app repo)`;
   const checks = [nodeCheck()];
   let playwright = null;
   for (const [name, use] of Object.entries(DEPENDENCIES)) {
@@ -118,12 +134,12 @@ export async function check({ launchBrowser = true } = {}) {
       checks.push({ name, ok: true, detail: use, fix: null });
     } catch (err) {
       if (!isMissingModule(err, name)) throw err;
-      checks.push({ name, ok: false, detail: `missing — ${use}`, fix: `cd "${SKILL_DIR}" && npm install` });
+      checks.push({ name, ok: false, detail: `missing — ${use}`, fix: ensureFix });
     }
   }
 
   if (!playwright) {
-    checks.push({ name: 'chromium', ok: false, detail: 'needs playwright first', fix: `cd "${SKILL_DIR}" && npm install && npx playwright install chromium` });
+    checks.push({ name: 'chromium', ok: false, detail: 'needs playwright first', fix: ensureFix });
   } else if (launchBrowser) {
     checks.push(await browserCheck(playwright, { skillDir: SKILL_DIR }));
   } else {

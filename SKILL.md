@@ -44,7 +44,8 @@ A local `.fig` file is not an input. Ask for the Figma or prototype URL instead 
 - A state that exists only in the app is not a parity finding. It waits for design backfill.
 - Do not dismiss a finding, invent pixel boxes, or hand-write `report.json` or `annotations.json`.
 - Do not type, ask for, print, or store a token or password. Sign-in stays with the bundled skill. If someone pastes a Figma token into chat, tell them to rotate it and never echo it back; they set `FIGMA_TOKEN` in their own terminal.
-- Ask before `npm install`, a migration, or a seed. The bundled scripts need Node.js 20 or newer. If `pixelmatch`, `pngjs`, or `playwright` cannot be resolved, ask, then install in the `design-qa` directory.
+- Skill deps (`pixelmatch`, `pngjs`, `playwright`) install only in this skill's `design-qa` folder — not in the app repository. Commands still run from the repository under test (cwd). Node.js 20 or newer required.
+- If those packages cannot be resolved: run `node …/design-qa/scripts/ensure-deps.mjs`. Exit 0 → continue. Exit 3 → ask once to install in the skill folder (does not modify the app repo); on yes run `ensure-deps.mjs --grant` (writes `~/.design-qa/auto-install.json` so later passes need not ask). When `DESIGN_QA_AUTO_INSTALL=1` or that consent file exists, run `ensure-deps.mjs` without asking. Still ask before migrations or seeds.
 - Before the first live capture: ask once about cookie/consent banners and whether the design expects a signed-in session (references/browser-capture.md).
 - When evidence reports unlisted worklist differences, expand the worklist before writing `findings.json` (follow the printed `Do:`).
 

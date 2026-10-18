@@ -108,7 +108,7 @@ It builds `report.json` (earlier dismissals re-applied), renders `report.html` a
 10. Never dismiss a finding yourself, and never point back at the design.
 11. A value equal to a token does not prove the code uses it: trace it to source. If Figma variables returned 403, say the token audit is incomplete in the reply (references/figma-extraction.md).
 12. Create tickets only after a yes. A review sent with "Create tickets" ticked is that yes.
-13. Ask before migrations, seeds or a one-time install. ci mode never asks.
+13. Ask before migrations or seeds. Skill npm deps install only in this skill folder (not the app repo): run `ensure-deps.mjs` when packages are missing; ask once only on exit 3, then `ensure-deps.mjs --grant`. Skip the ask when `DESIGN_QA_AUTO_INSTALL=1` or `~/.design-qa/auto-install.json` exists. ci mode never asks (set the env or pre-install).
 
 ## Keeping cost down
 

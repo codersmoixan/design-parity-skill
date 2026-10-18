@@ -55,6 +55,7 @@ The gate is unchanged by triage. INCOMPLETE never passes: the fix is in the job 
 |---|---|
 | `ANTHROPIC_API_KEY` | Always: runs the skill headless. |
 | `FIGMA_TOKEN` | Whenever the design is in Figma: CI has no Figma MCP. Not needed for a coded prototype source. |
+| `DESIGN_QA_AUTO_INSTALL` | Optional: set to `1` so `ensure-deps.mjs` can install skill-folder packages without asking (or pre-run `npm install` / `npx playwright install chromium` in the skill folder). |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Tickets are read. |
 | `<P>_USER`, `<P>_PASS` | App auth `basic` or `login` (`<P>` = `app.auth.envPrefix`, default `DESIGN_QA_APP`). |
 | `<P>_COOKIE` | App auth `cookie`. |
