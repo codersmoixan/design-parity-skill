@@ -1,0 +1,128 @@
+// Triage: the person's "fix-now" / "debt" decision for every triageable finding
+// (FIX_CODE with severity BLOCKER, WARNING or DS_CANDIDATE), so every diff is
+// either fixed now or tracked as debt with a ticket. Dismissed and INTENTIONAL
+// findings are never triaged.
+import {
+  SCHEMA_VERSION,
+  compareRanked,
+  computeScorecard,
+  findingsInBucket,
+  isTriageable,
+  rankFindings,
+  resolveOptions,
+  triageIndex,
+} from './ranking.mjs';
+
+export function kebab(text) {
+  return String(text ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** The report's slug: its ticket key, else the kebab-cased feature name. */
+export function reportSlug(report) {
+  return report?.meta?.ticket?.key || kebab(report?.meta?.feature) || 'report';
+}
+
+/** Who owns debt: always engineering (the code must match the design). */
+export const DEBT_OWNER = 'engineering';
+
+/**
+ * The findings with ranks recomputed by rankFindings. Ranks are fully derived (from
+ * severity, resolution, ledger, effort, topN and weights), so stored ones are never
+ * trusted: they go stale when a finding is reclassified or the config changes topN.
+ */
+export function withRanks(findings, opts = {}) {
+  return rankFindings(Array.isArray(findings) ? findings : [], opts);
+}
+
+/** Two date-times name the same instant ("…T10:00:00Z" and "…T10:00:00.000Z" do). */
+export function sameInstant(a, b) {
+  if (a === b) return true;
+  const t = Date.parse(a);
+  return !Number.isNaN(t) && t === Date.parse(b);
+}
+
+/** Recommended fix-now ids: the fix-now bucket, then every blocker left in the debt bucket, in rank order. */
+export function recommendedFixIds(report, opts = {}) {
+  const ranked = withRanks(report?.findings, opts);
+  const blockers = findingsInBucket(ranked, 'debt').filter((f) => f.severity === 'BLOCKER');
+  return [...findingsInBucket(ranked, 'fix-now'), ...blockers].map((f) => f.id);
+}
+
+/** "/design-qa triage <slug> --fix DQ-001,DQ-002" ("--fix none" when nothing is fixed now). */
+export function triageCommand(report, fixIds = []) {
+  const ids = (Array.isArray(fixIds) ? fixIds : []).filter(Boolean);
+  return `/design-qa triage ${reportSlug(report)} --fix ${ids.length ? ids.join(',') : 'none'}`;
+}
+
+/**
+ * Split the triageable findings by decision, each list in rank order:
+ * { triaged, fixNow, debt }. Without a triage block the recommendation applies:
+ * the fix-now bucket plus every blocker is fix now, the rest of the debt bucket is debt.
+ */
+export function triageLists(report, opts = {}) {
+  const findings = withRanks(report?.findings, opts);
+  if (!report?.triage || !Array.isArray(report.triage.items)) {
+    const debtBucket = findingsInBucket(findings, 'debt');
+    return {
+      triaged: false,
+      fixNow: [...findingsInBucket(findings, 'fix-now'), ...debtBucket.filter((f) => f.severity === 'BLOCKER')],
+      debt: debtBucket.filter((f) => f.severity !== 'BLOCKER'),
+    };
+  }
+  const index = triageIndex(report);
+  const sorted = findings.filter((f) => f && isTriageable(f) && index.has(f.id)).sort(compareRanked);
+  const decided = (f, decision) => index.get(f.id).decision === decision;
+  return {
+    triaged: true,
+    fixNow: sorted.filter((f) => decided(f, 'fix-now')),
+    debt: sorted.filter((f) => decided(f, 'debt')),
+  };
+}
+
+/**
+ * Build a triage block: listed ids → "fix-now", every other triageable finding →
+ * "debt". Blockers are always fix-now (with a warning when not listed). Tickets,
+ * and reasons whose decision did not change, carry over from the previous triage.
+ * Returns { triage, warnings }.
+ */
+export function buildTriage(report, { fixIds = [], decidedBy = null, decidedAt = new Date().toISOString(), source = 'cli' } = {}) {
+  const findings = Array.isArray(report?.findings) ? report.findings : [];
+  const previous = triageIndex(report);
+  const fix = new Set(fixIds);
+  const warnings = [];
+  const items = findings.filter((f) => f && isTriageable(f)).map((f) => {
+    let decision = fix.has(f.id) ? 'fix-now' : 'debt';
+    let reason = null;
+    if (decision === 'debt' && f.severity === 'BLOCKER') {
+      decision = 'fix-now';
+      reason = 'Blockers cannot be deferred.';
+      warnings.push(`${f.id} is a BLOCKER: blockers cannot be deferred; kept in fix now`);
+    }
+    const before = previous.get(f.id);
+    if (before && before.decision === decision && reason === null) reason = before.reason ?? null;
+    const ticket = before?.ticket ?? null;
+    if (ticket && decision === 'fix-now') warnings.push(`${f.id} moves to fix now but ${ticket.key} still tracks it as debt; close or re-scope that ticket`);
+    return { findingId: f.id, decision, reason, ticket };
+  });
+  return { triage: { decidedBy, decidedAt, source, items }, warnings };
+}
+
+const KEY_ORDER = ['$schema', 'schemaVersion', 'meta', 'scorecard', 'triage', 'stateMatrix', 'findings', 'ledgers', 'openDecisions', 'fixLoop', 'evidence'];
+
+function orderKeys(obj) {
+  const out = {};
+  for (const k of KEY_ORDER) if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = obj[k];
+  for (const k of Object.keys(obj)) if (!Object.prototype.hasOwnProperty.call(out, k)) out[k] = obj[k];
+  return out;
+}
+
+/** The report with a triage block applied: ranks filled, scorecard recomputed. */
+export function applyTriage(report, triage, opts = {}) {
+  const o = resolveOptions(opts);
+  const next = orderKeys({ ...report, schemaVersion: SCHEMA_VERSION, findings: withRanks(report.findings, o), triage });
+  next.scorecard = computeScorecard(next, o);
+  return next;
+}

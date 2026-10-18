@@ -1,0 +1,1060 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "design-qa report (schemaVersion 2.0)",
+  "description": "Agent-readable design-to-code parity report, schemaVersion 2.0 (breaking: only \"2.0\" validates). The design (a Figma file, a Figma prototype or a coded prototype, see meta.source) is the source of truth; findings are fixed in code, signed off as INTENTIONAL, explained as DATA or DISMISSED with a reason. Keys whose value may be null can be omitted (treated as null). Cross-field rules that JSON Schema cannot express (unique finding ids, findingIds/relatedFindings references, triage coverage, dismissal reasons, a signoff or knownDrift for INTENTIONAL, meta.figma for Figma sources, meta.screens consistency, pins on open FIX_CODE findings, crops inside the captured image, grounding in the capture on a remote target, full-length comparisons, derived scorecard values, pixel-diff bands against configured tolerances, the design-backfill rules) are enforced by scripts/validate.mjs. The optional backfill block (design backfill, step 2) sits beside the parity pass and never changes it. Properties marked \"x-removed\" name 1.x values with the message shown when they are used.",
+  "type": "object",
+  "required": ["schemaVersion", "meta", "scorecard", "stateMatrix", "findings", "ledgers", "openDecisions", "fixLoop", "evidence"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": "2.0", "errorMessage": "schemaVersion 2.0 required; 1.x reports: re-run the pass" },
+    "meta": { "$ref": "#/definitions/meta" },
+    "scorecard": { "$ref": "#/definitions/scorecard" },
+    "triage": { "$ref": "#/definitions/triage" },
+    "stateMatrix": { "type": "array", "items": { "$ref": "#/definitions/stateMatrixRow" } },
+    "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "ledgers": { "$ref": "#/definitions/ledgers" },
+    "openDecisions": { "type": "array", "items": { "$ref": "#/definitions/openDecision" } },
+    "fixLoop": { "type": "array", "items": { "$ref": "#/definitions/fixLoopEntry" } },
+    "evidence": { "$ref": "#/definitions/evidenceIndex" },
+    "backfill": { "$ref": "#/definitions/backfill" },
+    "differences": {
+      "type": "object",
+      "description": "Per state the worklist compared (build-report.mjs writes it; validate.mjs checks it against a rebuild): differing = the worklist's share of the page that differs (percent); regions = its regions that a finding or rejection names (key, percent, findings = finding ids, rejected = the reason, supported = a computed hint backs that reason); unlisted = regions beyond the worklist's caps that nothing names. Match and the verdict are derived from it.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["regions", "unlisted"],
+        "properties": {
+          "differing": { "type": ["number", "null"], "minimum": 0 },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["key", "percent"],
+              "properties": {
+                "key": { "type": "string" },
+                "percent": { "type": "number", "minimum": 0 },
+                "findings": { "type": "array", "items": { "type": "string" } },
+                "rejected": { "type": "string" },
+                "supported": { "type": "boolean" }
+              }
+            }
+          },
+          "unlisted": { "type": "object", "required": ["count", "percent"], "properties": { "count": { "$ref": "#/definitions/count" }, "percent": { "type": "number", "minimum": 0 } } }
+        }
+      }
+    },
+    "rejections": {
+      "type": ["array", "null"],
+      "description": "What the agent looked at and decided not to report (build-report.mjs writes it from findings.json rejected[]): worklist regions, design-system audit candidates and compare rows, each with a reason. Shown in report.html and the fix plan; a rejected worklist share of a state's page above tolerances.pixelDiff.review holds the verdict at REVIEW.",
+      "items": { "$ref": "#/definitions/rejection" }
+    }
+  },
+  "definitions": {
+    "nullableString": { "type": ["string", "null"] },
+    "crop": {
+      "type": "object",
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "type": "integer", "minimum": 0 },
+        "y": { "type": "integer", "minimum": 0 },
+        "w": { "type": "integer", "minimum": 1 },
+        "h": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "rejection": {
+      "type": "object",
+      "required": ["kind", "reason"],
+      "properties": {
+        "kind": { "enum": ["worklist", "audit", "compare"] },
+        "key": { "$ref": "#/definitions/nullableString", "description": "The worklist item key, the audit candidate key, or for a compare row \"<kind>:<state>:<elementClass | role \\\"name\\\" | selector>[:<property>]\"." },
+        "state": { "$ref": "#/definitions/nullableString" },
+        "screen": { "$ref": "#/definitions/nullableString" },
+        "reason": { "type": "string", "minLength": 1 },
+        "detail": { "$ref": "#/definitions/nullableString" },
+        "percentOfPage": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "crop": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/crop" }] },
+        "knownDrift": { "$ref": "#/definitions/nullableString" },
+        "duplicateOf": { "$ref": "#/definitions/nullableString" },
+        "coveredBy": { "$ref": "#/definitions/nullableString" },
+        "tokenEvidence": { "type": "object", "required": ["token", "file", "line", "snippet"], "properties": { "token": { "type": "string", "minLength": 1 }, "file": { "type": "string", "minLength": 1 }, "line": { "type": "integer", "minimum": 1 }, "snippet": { "type": "string", "minLength": 1 } } }
+      }
+    },
+    "count": { "type": "integer", "minimum": 0 },
+    "findingRefs": { "type": "array", "items": { "type": "string" } },
+    "severity": { "enum": ["BLOCKER", "WARNING", "PASS", "CANNOT_VERIFY", "DS_CANDIDATE"] },
+    "resolution": {
+      "enum": ["FIX_CODE", "INTENTIONAL", "DATA", "DISMISSED", "NONE", "UNCLASSIFIED"],
+      "x-removed": { "SYNC_FIGMA": "SYNC_FIGMA was removed in 2.0: reclassify as FIX_CODE or dismiss it" }
+    },
+    "ledgerName": { "enum": ["structure", "component", "style", "state", "behavior", "motion"] },
+    "stateResult": {
+      "enum": ["PASS", "FAIL", "CANNOT_VERIFY", "MISSING_IN_CODE", "NOT_SPECIFIED"],
+      "x-removed": { "MISSING_IN_DESIGN": "MISSING_IN_DESIGN was removed in 2.0: the state matrix lists only states the design defines; drop this row" }
+    },
+    "ledgerResult": { "enum": ["PASS", "FAIL", "CANNOT_VERIFY", "DATA"] },
+    "size": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["feature", "generatedAt", "skillVersion", "mode", "source", "app", "tools", "degradations"],
+      "properties": {
+        "feature": { "type": "string", "minLength": 1 },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "skillVersion": { "type": "string" },
+        "runId": {
+          "type": ["string", "null"],
+          "pattern": "^\\d{8}T\\d{6}Z-[0-9a-f]{6}$",
+          "description": "Optional: the run id of the pass that built the report (the run lock <dir>/.design-qa-run.json, scripts/run.mjs). build-report.mjs writes it and refuses to rebuild a report of another run."
+        },
+        "mode": {
+          "enum": ["audit", "fix", "ci"],
+          "x-removed": { "sync": "mode \"sync\" was removed in 2.0 (design → code only): use audit or fix" }
+        },
+        "ticket": {
+          "type": ["object", "null"],
+          "required": ["provider"],
+          "properties": {
+            "provider": { "enum": ["jira", "linear", "github", "none"] },
+            "key": { "$ref": "#/definitions/nullableString" },
+            "url": { "$ref": "#/definitions/nullableString" },
+            "title": { "$ref": "#/definitions/nullableString" }
+          }
+        },
+        "source": {
+          "type": "object",
+          "description": "The source of truth the build is compared against.",
+          "required": ["kind", "url"],
+          "properties": {
+            "kind": { "enum": ["figma", "figma-prototype", "prototype"] },
+            "url": { "type": "string", "format": "uri" },
+            "label": { "$ref": "#/definitions/nullableString" },
+            "tool": {
+              "enum": ["figma-make", "framer", "v0", "lovable", "html", "other", null],
+              "description": "prototype sources only: what built the prototype"
+            },
+            "frame": { "$ref": "#/definitions/size", "description": "viewport the design is compared at" }
+          }
+        },
+        "figma": {
+          "type": "object",
+          "required": ["fileKey", "nodeId", "url", "frame"],
+          "properties": {
+            "fileKey": { "type": "string", "minLength": 1 },
+            "nodeId": { "type": "string", "minLength": 1 },
+            "url": { "type": "string", "format": "uri" },
+            "frame": { "$ref": "#/definitions/size" }
+          },
+          "description": "Required when meta.source.kind is figma or figma-prototype; frame must equal meta.source.frame when both exist."
+        },
+        "screens": {
+          "type": ["array", "null"],
+          "description": "Multi-screen passes only. State ids are then written \"<screen>/<state>\" and every stateMatrix[].screen and findings[].screen is one of these ids.",
+          "items": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+              "name": { "type": "string", "minLength": 1 },
+              "designRef": { "$ref": "#/definitions/nullableString" },
+              "appRoute": { "$ref": "#/definitions/nullableString" },
+              "frame": { "$ref": "#/definitions/size" },
+              "variantOf": {
+                "$ref": "#/definitions/nullableString",
+                "description": "Optional: the meta.screens id this screen is a breakpoint variant of (e.g. \"orders-600\" with variantOf \"orders\" and its own frame size)."
+              }
+            }
+          }
+        },
+        "app": {
+          "type": "object",
+          "required": ["url", "kind", "viewport", "dpr"],
+          "properties": {
+            "url": { "type": "string", "format": "uri" },
+            "kind": { "enum": ["local", "preview", "staging", "prod"] },
+            "route": { "$ref": "#/definitions/nullableString" },
+            "commit": { "$ref": "#/definitions/nullableString" },
+            "branch": { "$ref": "#/definitions/nullableString" },
+            "viewport": { "$ref": "#/definitions/size" },
+            "dpr": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "fixture": { "$ref": "#/definitions/nullableString" },
+        "build": {
+          "type": ["object", "null"],
+          "description": "Written by build-report.mjs: the findings file and the evidence the report was built from, each with its sha256. validate.mjs and review.mjs verify them (verifyBuiltReport); a report without it is an evidence-gate error: write findings.json and build it.",
+          "required": ["tool", "version"],
+          "properties": {
+            "tool": { "const": "build-report" },
+            "version": { "type": "string" },
+            "findings": {
+              "type": ["object", "null"],
+              "required": ["path", "sha256"],
+              "properties": { "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+            },
+            "annotations": {
+              "type": ["object", "null"],
+              "description": "The reviewer's annotations the report was built from (<report dir>/annotations.json, written by apply-decisions.mjs), null when there were none. A change, a removal or a new annotations.json since the build means rebuild.",
+              "required": ["path", "sha256"],
+              "properties": { "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["path", "sha256"],
+                "properties": { "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+              }
+            },
+            "config": {
+              "type": ["object", "null"],
+              "required": ["path", "sha256"],
+              "properties": { "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+            },
+            "identities": {
+              "type": "object",
+              "description": "Written by build-report.mjs: { \"<DQ-id>\": \"<identity>\" }, what keeps finding ids stable across builds.",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        },
+        "target": {
+          "type": ["object", "null"],
+          "description": "Optional. Where the app under test runs. kind: \"local\" for localhost, 127.x.x.x, [::1], *.localhost and file: URLs, \"remote\" for any other meta.app.url (a deployed build); validate.mjs derives it from meta.app.url and rejects a mismatch. localCommit: the commit of the checkout the agent read source from; deployedCommit: the commit the target runs (default meta.app.commit). On a remote target findings are grounded in the capture (open findings need app-side evidence) and a meta.degradations entry is expected when the local commit is unknown or differs.",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["local", "remote"] },
+            "localCommit": { "$ref": "#/definitions/nullableString" },
+            "deployedCommit": { "$ref": "#/definitions/nullableString" }
+          }
+        },
+        "notChecked": {
+          "type": "object",
+          "description": "Design-system checks that did not run, each with why: tokens, components (build-report.mjs: the audit skipped, or no component library configured). scorecard.designSystem shows such a check as null, never 0.",
+          "properties": { "tokens": { "type": "string" }, "components": { "type": "string" } }
+        },
+        "dsAudit": {
+          "type": ["object", "null"],
+          "description": "Optional summary of the design-system audit (scripts/ds-audit.mjs or by hand): elements checked, values that match no token, components that are not from the design system, and the audit's output file. Record how it ran in meta.tools.dsAudit.",
+          "properties": {
+            "elementsChecked": { "$ref": "#/definitions/count" },
+            "offTokenValues": { "$ref": "#/definitions/count" },
+            "nonSystemComponents": { "$ref": "#/definitions/count" },
+            "output": { "$ref": "#/definitions/nullableString" }
+          },
+          "additionalProperties": { "$ref": "#/definitions/count" }
+        },
+        "tools": {
+          "type": "object",
+          "required": ["figmaAccess", "capture", "ticket"],
+          "properties": {
+            "figmaAccess": { "enum": ["mcp", "devmode-mcp", "rest", "manual", "none"] },
+            "capture": { "enum": ["script", "playwright-mcp", "builtin"] },
+            "ticket": { "enum": ["mcp", "rest", "pasted", "none"] },
+            "prototypeCapture": { "enum": ["script", "playwright-mcp", "builtin", null] },
+            "dsAudit": {
+              "enum": ["script", "manual", "none"],
+              "description": "How the design-system audit ran: script (scripts/ds-audit.mjs), manual (element by element, by hand) or none. Missing or none with open findings and no token or component finding is a validate.mjs warning: token and component mismatches were not looked for."
+            }
+          }
+        },
+        "degradations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["step", "reason", "impact"],
+            "properties": {
+              "step": { "type": "string" },
+              "reason": { "type": "string" },
+              "impact": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "scorecard": {
+      "type": "object",
+      "required": ["verdict", "bySeverity", "byResolution", "pixelDiff", "stateCoverage", "unexplained", "debt", "loopClosed", "dismissed", "designSystem"],
+      "properties": {
+        "parity": { "not": {}, "errorMessage": "scorecard.parity was removed: match and settled replace it (render-report.mjs --recompute drops it)" },
+        "match": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "How much of the compared pages matches the design: the mean of matchByState; null when no state was measured. At most 99 while a divergence is open, at least 1 unless every state is 0. The headline number; the verdict still carries the severity."
+        },
+        "matchByState": {
+          "type": "object",
+          "description": "Per compared state and per MISSING_IN_CODE state: 100 minus the share of the page that differs (the larger of differences.<state>.differing and the pixel diff's percent) and is not settled: a region counts as settled only when every finding naming it is a settled divergence or a rejection a computed hint supports names it (differences.<state>.regions). 0 for a MISSING_IN_CODE state or a sameAs state with an open state finding.",
+          "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 100 }
+        },
+        "settled": {
+          "type": "object",
+          "description": "BLOCKER, WARNING and DS_CANDIDATE findings that are not dismissed (total), and how many of them are not open (count): \"count of total findings settled\".",
+          "required": ["count", "total"],
+          "properties": { "count": { "$ref": "#/definitions/count" }, "total": { "$ref": "#/definitions/count" } }
+        },
+        "verdict": {
+          "enum": ["PASS", "REVIEW", "FAIL", "INCOMPLETE"],
+          "description": "INCOMPLETE: nothing was captured and compared (an empty state matrix, or no row PASS, FAIL or MISSING_IN_CODE). It is not a result: fix the capture and run the pass again."
+        },
+        "bySeverity": {
+          "type": "object",
+          "required": ["BLOCKER", "WARNING", "PASS", "CANNOT_VERIFY", "DS_CANDIDATE"],
+          "properties": {
+            "BLOCKER": { "$ref": "#/definitions/count" },
+            "WARNING": { "$ref": "#/definitions/count" },
+            "PASS": { "$ref": "#/definitions/count" },
+            "CANNOT_VERIFY": { "$ref": "#/definitions/count" },
+            "DS_CANDIDATE": { "$ref": "#/definitions/count" }
+          }
+        },
+        "byResolution": {
+          "type": "object",
+          "required": ["FIX_CODE", "INTENTIONAL", "DATA", "DISMISSED", "NONE", "UNCLASSIFIED"],
+          "properties": {
+            "FIX_CODE": { "$ref": "#/definitions/count" },
+            "INTENTIONAL": { "$ref": "#/definitions/count" },
+            "DATA": { "$ref": "#/definitions/count" },
+            "DISMISSED": { "$ref": "#/definitions/count" },
+            "NONE": { "$ref": "#/definitions/count" },
+            "UNCLASSIFIED": { "$ref": "#/definitions/count" }
+          }
+        },
+        "pixelDiff": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["percent", "band"],
+            "properties": {
+              "percent": { "type": "number", "minimum": 0, "maximum": 100, "description": "Differing pixels as a percent of the compared area (the pixels both images have)." },
+              "band": { "enum": ["pass", "review", "fail"] },
+              "structuralPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+              "structuralBand": { "enum": ["pass", "review"] },
+              "image": { "$ref": "#/definitions/nullableString" },
+              "designHeight": { "type": "integer", "minimum": 1, "description": "Height in pixels of the design image diff.mjs compared (before padding)." },
+              "appHeight": { "type": "integer", "minimum": 1, "description": "Height in pixels of the app image diff.mjs compared (before padding)." },
+              "designWidth": { "type": "integer", "minimum": 1, "description": "Width in pixels of the design image diff.mjs compared (before padding)." },
+              "appWidth": { "type": "integer", "minimum": 1, "description": "Width in pixels of the app image diff.mjs compared (before padding)." },
+              "paddedRight": {
+                "type": ["object", "null"],
+                "description": "diff.mjs padded the narrower image on the right to the wider one's width; the padded columns are not compared (paddedRegions). side: the image that was narrower; cols: how many columns were added.",
+                "required": ["side", "cols"],
+                "properties": {
+                  "side": { "enum": ["design", "app"] },
+                  "cols": { "type": "integer", "minimum": 1 }
+                }
+              },
+              "padded": {
+                "type": ["object", "null"],
+                "description": "diff.mjs padded the shorter image to the taller one's height; the padded rows are not compared (paddedRegions). side: the image that was shorter; rows: how many rows were added.",
+                "required": ["side", "rows"],
+                "properties": {
+                  "side": { "enum": ["design", "app"] },
+                  "rows": { "type": "integer", "minimum": 1 }
+                }
+              },
+              "paddedRegions": {
+                "type": "array",
+                "description": "diff.mjs: the parts only one image has, not compared (x, y, w, h, unmasked pixels, side = the smaller image, sizeDiff { axis, px }). Unmasked pixels raise the band to review and add a REVIEW reason naming the size difference; they never count in percent or match.",
+                "items": { "type": "object", "required": ["x", "y", "w", "h", "pixels", "side", "sizeDiff"], "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "w": { "type": "integer" }, "h": { "type": "integer" }, "pixels": { "$ref": "#/definitions/count" }, "padded": { "type": "boolean" }, "side": { "enum": ["design", "app"] }, "sizeDiff": { "type": "object", "properties": { "axis": { "enum": ["height", "width"] }, "px": { "type": "integer", "minimum": 1 } } } } }
+              },
+              "masks": {
+                "type": "array",
+                "description": "diff.mjs: the masked rectangles (not compared) and the pixels each covers.",
+                "items": { "type": "object", "required": ["x", "y", "w", "h"], "properties": { "label": { "type": ["string", "null"] }, "x": { "type": "number" }, "y": { "type": "number" }, "w": { "type": "number" }, "h": { "type": "number" }, "pixels": { "$ref": "#/definitions/count" } } }
+              }
+            }
+          }
+        },
+        "stateCoverage": {
+          "type": "object",
+          "required": ["total", "designed", "specified", "implemented", "verified"],
+          "properties": {
+            "total": { "$ref": "#/definitions/count" },
+            "designed": { "$ref": "#/definitions/count" },
+            "specified": { "$ref": "#/definitions/count" },
+            "implemented": { "$ref": "#/definitions/count" },
+            "verified": { "$ref": "#/definitions/count", "description": "PASS or FAIL rows that were compared (a pixel diff against a design image; captured.comparison), not only captured." },
+            "partial": { "$ref": "#/definitions/count", "description": "Optional: verified rows captured only in part." }
+          }
+        },
+        "unexplained": { "$ref": "#/definitions/count", "description": "Findings with resolution FIX_CODE or UNCLASSIFIED that are not ticketed debt." },
+        "debt": {
+          "type": "object",
+          "description": "Triage items decided \"debt\", and how many of them have a ticket.",
+          "required": ["count", "ticketed"],
+          "properties": {
+            "count": { "$ref": "#/definitions/count" },
+            "ticketed": { "$ref": "#/definitions/count" }
+          }
+        },
+        "loopClosed": { "type": "boolean", "description": "unexplained is 0, there are no open decisions and the verdict is not INCOMPLETE." },
+        "dismissed": { "$ref": "#/definitions/count", "description": "Findings with resolution DISMISSED." },
+        "designSystem": {
+          "type": "object",
+          "description": "Open findings by design-system kind: tokens = ledger style whose expected.token is set and differs from actual.token; components = ledger component; motion = ledger motion. tokens or components is null when that check did not run and nothing was found (meta.notChecked or no design-system audit): not checked, never 0.",
+          "required": ["tokens", "components", "motion"],
+          "properties": {
+            "tokens": { "type": ["integer", "null"], "minimum": 0 },
+            "components": { "type": ["integer", "null"], "minimum": 0 },
+            "motion": { "$ref": "#/definitions/count" }
+          }
+        },
+        "rejected": {
+          "type": "object",
+          "description": "Present when report.rejections is: how many worklist, audit and compare rejections, and pageShare = the largest rejected worklist share (percent) of any one state's page.",
+          "required": ["worklist", "audit", "compare", "pageShare"],
+          "properties": {
+            "worklist": { "$ref": "#/definitions/count" },
+            "audit": { "$ref": "#/definitions/count" },
+            "compare": { "$ref": "#/definitions/count" },
+            "pageShare": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "unpinned": { "$ref": "#/definitions/count", "description": "Optional (render-report.mjs --recompute writes it): open FIX_CODE findings without a pin (no evidence entry with both state and crop), each exempt or carrying unpinnedReason." },
+        "backfill": {
+          "type": "object",
+          "description": "Design backfill (step 2), present only when report.backfill is set: candidates = items; toBuild = decision build without a Figma frame yet; built = items with figma set; notNeeded; pending; ready = loopClosed or backfill.gate.override is set. Never changes match, verdict, unexplained, loopClosed or designSystem.",
+          "required": ["candidates", "toBuild", "built", "notNeeded", "pending", "ready"],
+          "properties": {
+            "candidates": { "$ref": "#/definitions/count" },
+            "toBuild": { "$ref": "#/definitions/count" },
+            "built": { "$ref": "#/definitions/count" },
+            "notNeeded": { "$ref": "#/definitions/count" },
+            "pending": { "$ref": "#/definitions/count" },
+            "ready": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "triage": {
+      "type": ["object", "null"],
+      "description": "The person's fix-now / debt decision for every triageable finding (FIX_CODE with severity BLOCKER, WARNING or DS_CANDIDATE), each exactly once. A BLOCKER can never be debt; DISMISSED and INTENTIONAL findings never appear.",
+      "required": ["decidedAt", "source", "items"],
+      "properties": {
+        "decidedBy": { "$ref": "#/definitions/nullableString" },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "source": { "enum": ["report-ui", "chat", "cli", "ci-default"] },
+        "ticketsAuthorized": {
+          "type": "boolean",
+          "description": "Optional. Recorded by apply-decisions.mjs from the decisions document's \"tickets\": true when the reviewer authorised creating tickets for the debt items, false when they did not. Absent when the triage did not come from a decisions document."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["findingId", "decision"],
+            "properties": {
+              "findingId": { "type": "string" },
+              "decision": { "enum": ["fix-now", "debt"] },
+              "reason": { "$ref": "#/definitions/nullableString" },
+              "ticket": {
+                "type": ["object", "null"],
+                "required": ["provider", "key", "url", "createdAt"],
+                "properties": {
+                  "provider": { "enum": ["jira", "linear", "github"] },
+                  "key": { "type": "string", "minLength": 1 },
+                  "url": { "type": "string", "format": "uri" },
+                  "createdAt": { "type": "string", "format": "date-time" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "stateMatrixRow": {
+      "type": "object",
+      "required": ["state", "label", "result", "findings"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Normalised state id: with-data, empty, loading, error, hover, focus, active, selected, disabled, … Multi-screen passes write \"<screen>/<state>\" (e.g. \"cart/empty\")."
+        },
+        "screen": { "type": ["string", "null"], "description": "Multi-screen passes: the meta.screens id this state belongs to (the prefix of state)." },
+        "label": { "type": "string" },
+        "designed": {
+          "type": ["object", "null"],
+          "required": ["nodeId", "name"],
+          "properties": {
+            "nodeId": { "type": "string" },
+            "name": { "type": "string" },
+            "frame": { "$ref": "#/definitions/size", "description": "Optional: the designed frame's full size. validate.mjs checks the compared design image is not shorter (a truncated comparison)." }
+          }
+        },
+        "specified": {
+          "type": ["object", "null"],
+          "required": ["acRef", "text"],
+          "properties": { "acRef": { "type": "string" }, "text": { "type": "string" } }
+        },
+        "implemented": {
+          "type": ["object", "null"],
+          "required": ["driver", "detail"],
+          "properties": {
+            "driver": { "enum": ["fixture", "query", "mock", "storage", "action", "source"] },
+            "detail": { "type": "string" }
+          }
+        },
+        "captured": {
+          "type": ["object", "null"],
+          "description": "Images of this state: design (exported from Figma or captured from the prototype), app and diff.",
+          "properties": {
+            "design": { "type": ["string", "null"] },
+            "app": { "type": ["string", "null"] },
+            "diff": { "type": ["string", "null"] },
+            "page": {
+              "type": ["object", "null"],
+              "description": "What the app capture of this state covered, from capture.json: width and height = the page's full scroll size in CSS px (capture.json page), image = the PNG size (capture.json size), fullPage = the whole scroll size was captured, clipped = how many scroll containers still hide content in the screenshot (capture.json clipped.length). validate.mjs checks the app image is not smaller than the page.",
+              "required": ["width", "height", "fullPage", "clipped"],
+              "properties": {
+                "width": { "type": "integer", "minimum": 1 },
+                "height": { "type": "integer", "minimum": 1 },
+                "fullPage": { "type": "boolean" },
+                "clipped": { "type": "integer", "minimum": 0 },
+                "image": { "$ref": "#/definitions/size" },
+                "partial": { "type": "boolean", "description": "true: the state was captured only in part on purpose (meta.degradations has step \"capture-coverage:<state>\"). It counts as verified only in part and holds the verdict at REVIEW." },
+                "viewportOnly": { "type": "boolean", "description": "true: a deliberate first-screen capture (fullPage false: an overlay, a modal) whose image covers the state's design frame; the whole-page check accepts it." }
+              }
+            },
+            "sameAs": {
+              "type": ["string", "null"],
+              "description": "The state this one was captured identical to (capture.json sameAs: its driver changed nothing on the page). build-report.mjs requires an open state finding or a MISSING_IN_CODE override for it."
+            },
+            "comparison": {
+              "type": ["object", "null"],
+              "description": "How the state was compared with the design (build-report.mjs writes it): pixelDiff = a pixel diff ran; worklist = the page was walked region by region; compareRows = compare.json rows of the state. A PASS or FAIL row needs pixelDiff true or compareRows above 0: a worklist alone is not a comparison.",
+              "required": ["pixelDiff", "worklist", "compareRows"],
+              "properties": {
+                "pixelDiff": { "type": "boolean" },
+                "worklist": { "type": "boolean" },
+                "compareRows": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "figma": { "not": {}, "errorMessage": "captured.figma was renamed to captured.design in 2.0" }
+          }
+        },
+        "result": {
+          "enum": ["PASS", "FAIL", "CANNOT_VERIFY", "MISSING_IN_CODE", "NOT_SPECIFIED"],
+          "x-removed": {
+            "MISSING_IN_DESIGN": "MISSING_IN_DESIGN was removed in 2.0: the state matrix lists only states the design defines; drop this row"
+          }
+        },
+        "note": { "type": ["string", "null"] },
+        "findings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "title", "ledger", "severity", "resolution", "region", "element", "expected", "actual", "evidence"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^DQ-\\d{3,}$" },
+        "title": { "type": "string", "minLength": 1 },
+        "ledger": { "$ref": "#/definitions/ledgerName" },
+        "state": { "$ref": "#/definitions/nullableString" },
+        "screen": { "$ref": "#/definitions/nullableString", "description": "Multi-screen passes: the meta.screens id of the finding." },
+        "severity": { "$ref": "#/definitions/severity" },
+        "resolution": { "$ref": "#/definitions/resolution" },
+        "region": { "type": "string" },
+        "element": {
+          "type": "object",
+          "properties": {
+            "selector": { "$ref": "#/definitions/nullableString" },
+            "figmaLayerPath": { "$ref": "#/definitions/nullableString" },
+            "figmaNodeId": { "$ref": "#/definitions/nullableString" }
+          }
+        },
+        "property": { "$ref": "#/definitions/nullableString" },
+        "expected": {
+          "type": "object",
+          "required": ["source"],
+          "properties": {
+            "value": { "$ref": "#/definitions/nullableString" },
+            "token": { "$ref": "#/definitions/nullableString" },
+            "source": { "enum": ["figma", "prototype", "ticket", "design-rules"] }
+          }
+        },
+        "actual": {
+          "type": "object",
+          "required": ["source"],
+          "properties": {
+            "value": { "$ref": "#/definitions/nullableString" },
+            "token": { "$ref": "#/definitions/nullableString" },
+            "source": {
+              "type": "object",
+              "properties": {
+                "file": { "$ref": "#/definitions/nullableString" },
+                "line": { "type": ["integer", "null"], "minimum": 1 },
+                "snippet": { "$ref": "#/definitions/nullableString" }
+              }
+            }
+          }
+        },
+        "delta": { "$ref": "#/definitions/nullableString" },
+        "tolerance": { "$ref": "#/definitions/nullableString" },
+        "fix": {
+          "type": ["object", "null"],
+          "required": ["summary", "files", "effort"],
+          "properties": {
+            "summary": { "type": "string", "minLength": 1 },
+            "patchHint": { "$ref": "#/definitions/nullableString" },
+            "files": { "type": "array", "items": { "type": "string" } },
+            "effort": { "type": "integer", "minimum": 1, "maximum": 5 }
+          }
+        },
+        "evidence": { "type": "array", "items": { "$ref": "#/definitions/evidenceItem" } },
+        "rank": {
+          "type": ["object", "null"],
+          "description": "Derived by render-report.mjs when null. fix-now/debt: FIX_CODE findings with severity BLOCKER, WARNING or DS_CANDIDATE (the first topN by score are fix-now); none: everything else.",
+          "required": ["score", "bucket"],
+          "properties": {
+            "score": { "type": "number" },
+            "bucket": {
+              "enum": ["fix-now", "debt", "none"],
+              "x-removed": { "sync-figma": "the sync-figma bucket was removed in 2.0: FIX_CODE findings are fix-now or debt, everything else none" }
+            }
+          }
+        },
+        "signoff": {
+          "type": ["object", "null"],
+          "description": "Required when resolution is INTENTIONAL, unless knownDrift cites a known drift (scripts/validate.mjs enforces it). by and reason are never blank.",
+          "required": ["by", "date", "reason"],
+          "properties": {
+            "by": { "type": "string", "minLength": 1, "pattern": "\\S", "errorMessage": "must name who signed off (not blank)" },
+            "date": {
+              "type": "string",
+              "anyOf": [{ "format": "date" }, { "format": "date-time" }],
+              "errorMessage": "must be a date (2026-01-31) or an ISO-8601 date-time (2026-01-31T12:00:00Z)"
+            },
+            "reason": { "type": "string", "minLength": 1, "pattern": "\\S", "errorMessage": "must say why the divergence is accepted (not blank)" },
+            "previousResolution": { "enum": ["UNCLASSIFIED", "DATA"], "description": "The resolution before this sign-off or dismissal, restored by an undo (dismiss.mjs --undo). Absent means FIX_CODE." },
+            "enteredBy": { "enum": ["agent"], "description": "Set by build-report.mjs on a sign-off that came through findings.json: nobody confirmed it, so the finding stays open until a person accepts it in the review. Sign-offs from the review or a known drift's \"Signed off\" line have none." }
+          }
+        },
+        "dismissal": {
+          "type": ["object", "null"],
+          "description": "Required when resolution is DISMISSED. not-an-issue: the difference is not real or does not matter; remove: out of this QA (duplicate, out of scope, not this team's surface).",
+          "required": ["kind", "reason", "date", "source"],
+          "properties": {
+            "kind": { "enum": ["not-an-issue", "remove"] },
+            "reason": { "type": "string", "minLength": 1 },
+            "by": { "$ref": "#/definitions/nullableString" },
+            "date": { "type": "string", "format": "date-time" },
+            "source": { "enum": ["report-ui", "chat", "cli", "prior-pass"] },
+            "priorRef": { "$ref": "#/definitions/nullableString", "description": "id of the dismissed-log entry when re-applied from an earlier pass" },
+            "previousResolution": { "enum": ["UNCLASSIFIED", "DATA"], "description": "The resolution before this sign-off or dismissal, restored by an undo (dismiss.mjs --undo). Absent means FIX_CODE." }
+          }
+        },
+        "knownDrift": { "$ref": "#/definitions/nullableString", "description": "The known-drift id (e.g. \"KD-3\") an INTENTIONAL finding cites." },
+        "dataReason": {
+          "$ref": "#/definitions/nullableString",
+          "description": "Required for resolution DATA (an evidence gate): at least 20 characters saying which data differs and why it is not a code problem."
+        },
+        "unpinnedReason": {
+          "$ref": "#/definitions/nullableString",
+          "description": "Why an open FIX_CODE finding has no pin (no evidence entry with both state and crop): at least 20 characters naming what is absent from every capture. Not needed when the finding's state is MISSING_IN_CODE and has no app capture. Ignored (a warning) when the finding has a pin."
+        },
+        "acRef": { "$ref": "#/definitions/nullableString" },
+        "annotation": {
+          "type": ["object", "null"],
+          "description": "Set by build-report.mjs on a finding a person added in the review (an annotation on the capture that the pass missed): the entry of <report dir>/annotations.json it was built from, which the agent filed in findings.json ({ \"annotation\": \"AN-001\", … }). The severity and the reviewer-drawn pin come from it. Absent on findings the agent found.",
+          "required": ["id", "note", "side", "box", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "pattern": "^AN-\\d{3,}$" },
+            "note": { "type": "string", "minLength": 1, "description": "The reviewer's description of the issue, as written." },
+            "by": { "$ref": "#/definitions/nullableString" },
+            "date": { "type": ["string", "null"], "format": "date-time" },
+            "side": { "enum": ["app", "design"], "description": "The image the reviewer marked: the app capture or the design." },
+            "box": { "$ref": "#/definitions/crop", "description": "The box the reviewer drew, in that image's pixels, as recorded (the evidence crop may be clipped to a later capture)." },
+            "decision": { "enum": ["fix-now", "debt"], "description": "Fix now or later, as the reviewer chose it when adding the annotation." },
+            "source": { "enum": ["report-ui"] }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["severity"],
+            "properties": { "severity": { "enum": ["PASS", "CANNOT_VERIFY"] } }
+          },
+          "then": {
+            "properties": {
+              "resolution": { "const": "NONE", "errorMessage": "must be NONE when severity is PASS or CANNOT_VERIFY" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["severity"],
+            "properties": { "severity": { "enum": ["BLOCKER", "WARNING", "DS_CANDIDATE"] } }
+          },
+          "then": {
+            "properties": {
+              "resolution": {
+                "not": { "const": "NONE" },
+                "errorMessage": "must not be NONE when severity is BLOCKER, WARNING or DS_CANDIDATE (use FIX_CODE, INTENTIONAL, DATA, DISMISSED or UNCLASSIFIED)"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["resolution", "severity", "rank"],
+            "properties": {
+              "resolution": { "const": "FIX_CODE" },
+              "severity": { "enum": ["BLOCKER", "WARNING", "DS_CANDIDATE"] },
+              "rank": { "type": "object" }
+            }
+          },
+          "then": {
+            "properties": {
+              "rank": {
+                "properties": {
+                  "bucket": {
+                    "enum": ["fix-now", "debt"],
+                    "errorMessage": "must be \"fix-now\" or \"debt\" for a FIX_CODE finding with severity BLOCKER, WARNING or DS_CANDIDATE"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["rank"],
+            "properties": { "rank": { "type": "object" } },
+            "not": {
+              "required": ["resolution", "severity"],
+              "properties": {
+                "resolution": { "const": "FIX_CODE" },
+                "severity": { "enum": ["BLOCKER", "WARNING", "DS_CANDIDATE"] }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "rank": {
+                "properties": {
+                  "bucket": {
+                    "const": "none",
+                    "errorMessage": "must be \"none\": only FIX_CODE findings with severity BLOCKER, WARNING or DS_CANDIDATE are ranked"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "evidenceItem": {
+      "type": "object",
+      "required": ["type", "path"],
+      "properties": {
+        "type": { "enum": ["screenshot", "design", "computed", "dom", "motion", "figma", "diff"] },
+        "path": { "type": "string", "minLength": 1 },
+        "crop": {
+          "type": ["object", "null"],
+          "required": ["x", "y", "w", "h"],
+          "properties": {
+            "x": { "type": "integer", "minimum": 0 },
+            "y": { "type": "integer", "minimum": 0 },
+            "w": { "type": "integer", "minimum": 1 },
+            "h": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "state": { "$ref": "#/definitions/nullableString" }
+      }
+    },
+    "presence": {
+      "type": "object",
+      "required": ["present"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "order": { "type": ["integer", "null"] },
+        "label": { "$ref": "#/definitions/nullableString" }
+      }
+    },
+    "ledgers": {
+      "type": "object",
+      "required": ["structure", "component", "style", "state", "behavior", "motion"],
+      "properties": {
+        "structure": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["region", "figma", "app", "result", "findingIds"],
+            "properties": {
+              "region": { "type": "string" },
+              "figma": { "$ref": "#/definitions/presence" },
+              "app": { "$ref": "#/definitions/presence" },
+              "result": { "$ref": "#/definitions/ledgerResult" },
+              "findingIds": { "$ref": "#/definitions/findingRefs" }
+            }
+          }
+        },
+        "component": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["figmaComponent", "expectedComponent", "result", "findingIds"],
+            "properties": {
+              "figmaComponent": { "type": "string" },
+              "variant": { "$ref": "#/definitions/nullableString" },
+              "expectedComponent": { "type": "string" },
+              "actualComponent": { "$ref": "#/definitions/nullableString" },
+              "result": { "$ref": "#/definitions/ledgerResult" },
+              "findingIds": { "$ref": "#/definitions/findingRefs" }
+            }
+          }
+        },
+        "style": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["elementClass", "selector", "property", "result", "findingIds"],
+            "properties": {
+              "elementClass": { "type": "string" },
+              "selector": { "type": "string" },
+              "property": { "type": "string" },
+              "figma": { "type": ["string", "number", "null"] },
+              "token": { "$ref": "#/definitions/nullableString" },
+              "computed": { "type": ["string", "number", "null"] },
+              "sourceValue": { "$ref": "#/definitions/nullableString" },
+              "result": { "$ref": "#/definitions/ledgerResult" },
+              "findingIds": { "$ref": "#/definitions/findingRefs" }
+            }
+          }
+        },
+        "state": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["state", "result", "findingIds"],
+            "properties": {
+              "state": { "type": "string" },
+              "result": { "$ref": "#/definitions/stateResult" },
+              "findingIds": { "$ref": "#/definitions/findingRefs" }
+            }
+          }
+        },
+        "behavior": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["trigger", "expected", "result", "findingIds"],
+            "properties": {
+              "state": { "$ref": "#/definitions/nullableString" },
+              "trigger": { "type": "string" },
+              "expected": { "type": "string" },
+              "observed": { "$ref": "#/definitions/nullableString" },
+              "acRef": { "$ref": "#/definitions/nullableString" },
+              "result": { "$ref": "#/definitions/ledgerResult" },
+              "findingIds": { "$ref": "#/definitions/findingRefs" }
+            }
+          }
+        },
+        "motion": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["state", "trigger", "property", "expected", "result", "findingIds"],
+            "properties": {
+              "state": { "type": "string" },
+              "selector": { "$ref": "#/definitions/nullableString" },
+              "figmaNodeId": { "$ref": "#/definitions/nullableString" },
+              "trigger": { "enum": ["hover", "focus", "press", "click", "load", "state-change", "scroll", "timeout", "other"] },
+              "property": {
+                "type": "string",
+                "minLength": 1,
+                "description": "What animates: opacity, transform, height, background-color, … or \"animation\"."
+              },
+              "expected": { "type": "object", "allOf": [{ "$ref": "#/definitions/motionSpec" }] },
+              "observed": {
+                "type": ["object", "null"],
+                "allOf": [{ "$ref": "#/definitions/motionSpec" }],
+                "description": "null: nothing animates in the app (missing motion)."
+              },
+              "result": { "$ref": "#/definitions/ledgerResult" },
+              "findingIds": { "$ref": "#/definitions/findingRefs" }
+            }
+          }
+        }
+      }
+    },
+    "openDecision": {
+      "type": "object",
+      "required": ["id", "question", "options", "relatedFindings"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^OD-\\d+$" },
+        "question": { "type": "string", "minLength": 1 },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "consequence"],
+            "properties": { "label": { "type": "string" }, "consequence": { "type": "string" } }
+          }
+        },
+        "recommendation": { "$ref": "#/definitions/nullableString" },
+        "relatedFindings": { "$ref": "#/definitions/findingRefs" }
+      }
+    },
+    "fixLoopEntry": {
+      "type": "object",
+      "required": ["iteration", "action", "findingIds", "result"],
+      "properties": {
+        "iteration": { "type": "integer", "minimum": 0 },
+        "action": { "type": "string" },
+        "findingIds": { "$ref": "#/definitions/findingRefs" },
+        "testsRun": { "$ref": "#/definitions/nullableString" },
+        "result": { "enum": ["green", "red", "skipped"] },
+        "pixelDiffAfter": {
+          "type": ["object", "null"],
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 100 }
+        }
+      }
+    },
+    "stateEvidence": {
+      "type": "object",
+      "properties": {
+        "design": { "$ref": "#/definitions/nullableString" },
+        "app": { "$ref": "#/definitions/nullableString" },
+        "diff": { "$ref": "#/definitions/nullableString" },
+        "computed": { "$ref": "#/definitions/nullableString" },
+        "dom": { "$ref": "#/definitions/nullableString" },
+        "motion": { "$ref": "#/definitions/nullableString" },
+        "designComputed": { "$ref": "#/definitions/nullableString" },
+        "hidden": {
+          "type": "array",
+          "description": "What capture.mjs hid or removed before the screenshot (preCapture): not compared.",
+          "items": { "type": "object", "required": ["selector", "kind", "count"], "properties": { "selector": { "type": "string" }, "kind": { "enum": ["hide", "remove"] }, "count": { "$ref": "#/definitions/count" }, "areaPx": { "$ref": "#/definitions/count" } } }
+        },
+        "figma": { "not": {}, "errorMessage": "evidence.states.<state>.figma was renamed to design in 2.0" }
+      }
+    },
+    "evidenceIndex": {
+      "type": "object",
+      "required": ["states"],
+      "properties": {
+        "figmaSpec": { "$ref": "#/definitions/nullableString" },
+        "ticket": { "$ref": "#/definitions/nullableString" },
+        "capture": { "$ref": "#/definitions/nullableString" },
+        "compare": { "$ref": "#/definitions/nullableString", "description": "evidence/compare.json (coded-prototype compare)" },
+        "prototypeCapture": { "$ref": "#/definitions/nullableString" },
+        "states": { "type": "object", "additionalProperties": { "$ref": "#/definitions/stateEvidence" } }
+      }
+    },
+    "motionSpec": {
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1, "description": "transition, animation, smart-animate, dissolve, move-in, slide, push, none, …" },
+        "durationMs": { "type": ["number", "null"], "minimum": 0 },
+        "easing": { "$ref": "#/definitions/nullableString" },
+        "delayMs": { "type": ["number", "null"] },
+        "detail": { "$ref": "#/definitions/nullableString" }
+      },
+      "description": "Shape of ledgers.motion[].expected / observed (type is checked where it is used: observed may be null)."
+    },
+    "backfill": {
+      "type": ["object", "null"],
+      "description": "Design backfill (step 2 of 2): states the app has but the design does not, to be built back into Figma with the design-system library once production matches the design (step 1). Never part of stateMatrix, findings, parity, verdict, unexplained, loopClosed, triage or designSystem. Validator: item ids unique; screen rules as for findings; not-needed needs a reason; figma only with decision build; a figma frame while not ready (no loopClosed, no override) is a warning (backfill.mjs --record refuses it; a later pass that reopens step 1 keeps frames built earlier); no item shares a state id with a stateMatrix row.",
+      "required": ["gate", "items"],
+      "properties": {
+        "gate": {
+          "type": "object",
+          "properties": {
+            "override": {
+              "type": ["object", "null"],
+              "description": "Building before step 1 is closed (scorecard.loopClosed false) needs a person's override with a reason.",
+              "required": ["date", "reason"],
+              "properties": {
+                "by": { "$ref": "#/definitions/nullableString" },
+                "date": { "type": "string", "format": "date-time" },
+                "reason": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        "items": { "type": "array", "items": { "$ref": "#/definitions/backfillItem" } }
+      }
+    },
+    "backfillItem": {
+      "type": "object",
+      "required": ["id", "state", "label", "discoveredBy", "decision"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^BF-\\d{3,}$" },
+        "state": { "type": "string", "minLength": 1, "description": "Undesigned state id; multi-screen passes write \"<screen>/<state>\". Never a stateMatrix state." },
+        "screen": { "$ref": "#/definitions/nullableString", "description": "Multi-screen passes: the meta.screens id of the item." },
+        "label": { "type": "string", "minLength": 1 },
+        "discoveredBy": { "enum": ["config", "source", "ticket", "capture"] },
+        "detail": { "$ref": "#/definitions/nullableString", "description": "Where it was found, e.g. \"OrdersTable.tsx:88 renders BulkBar when selection.length > 0\"." },
+        "driver": { "type": ["object", "null"], "description": "A capture.mjs DRIVER that puts the app into this state, or null." },
+        "captured": {
+          "type": ["object", "null"],
+          "description": "App-only evidence from capture.mjs --out <dir>/evidence/backfill (paths relative to report.json).",
+          "properties": {
+            "app": { "$ref": "#/definitions/nullableString" },
+            "computed": { "$ref": "#/definitions/nullableString" },
+            "dom": { "$ref": "#/definitions/nullableString" },
+            "motion": { "$ref": "#/definitions/nullableString" }
+          }
+        },
+        "anchor": {
+          "type": ["object", "null"],
+          "description": "The designed frame the new frame sits next to.",
+          "required": ["nodeId"],
+          "properties": {
+            "nodeId": { "type": "string", "minLength": 1 },
+            "name": { "$ref": "#/definitions/nullableString" }
+          }
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "variant": { "$ref": "#/definitions/nullableString" },
+              "selector": { "$ref": "#/definitions/nullableString" },
+              "inLibrary": { "type": ["boolean", "null"] }
+            }
+          }
+        },
+        "tokens": { "type": "array", "items": { "type": "string" } },
+        "decision": { "enum": ["pending", "build", "not-needed"] },
+        "decidedBy": { "$ref": "#/definitions/nullableString" },
+        "decidedAt": { "type": ["string", "null"], "format": "date-time" },
+        "reason": { "$ref": "#/definitions/nullableString", "description": "Required (non-empty) when decision is not-needed." },
+        "figma": {
+          "type": ["object", "null"],
+          "description": "The frame built in Figma (decision build only).",
+          "required": ["nodeId", "url", "builtAt"],
+          "properties": {
+            "nodeId": { "type": "string", "minLength": 1 },
+            "url": { "type": "string", "format": "uri" },
+            "name": { "$ref": "#/definitions/nullableString" },
+            "builtAt": { "type": "string", "format": "date-time" },
+            "roundTrip": {
+              "type": ["object", "null"],
+              "description": "Pixel diff of the 1x frame export against the app capture.",
+              "required": ["percent", "band"],
+              "properties": {
+                "percent": { "type": "number", "minimum": 0, "maximum": 100 },
+                "band": { "enum": ["pass", "review", "fail"] }
+              }
+            }
+          }
+        },
+        "dsGaps": { "type": "array", "items": { "type": "string" }, "description": "Components, variants or tokens the library lacks (design-system candidates of step 2, never step-1 findings)." }
+      }
+    }
+  }
+}

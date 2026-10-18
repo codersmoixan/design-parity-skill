@@ -1,0 +1,42 @@
+{
+  "$comment": "Copy to design-qa/components.json and set designSystem.componentCatalog. components: Figma main-component name (componentName in the spec) → code component, import path, DOM selector, and each variant property → prop (\"state\" marks an interactive state, checked through the state matrix). Set \"kind\" (button, textbox, select, checkbox, radio, switch, tab, slider, tag, link, dialog, tooltip, menu, alert, table) when the name does not say it. rawPrimitives: DOM patterns that mean a design-system component should have been used; the design-system audit reads them too.",
+  "designSystem": "Your DS",
+  "components": {
+    "Button": {
+      "component": "Button",
+      "importPath": "@your-ds/react",
+      "selector": "[data-ds-component='Button']",
+      "props": {
+        "Variant": { "prop": "variant", "values": { "Primary": "primary", "Secondary": "secondary", "Ghost": "ghost" } },
+        "Size": { "prop": "size", "values": { "Small": "sm", "Medium": "md", "Large": "lg" } },
+        "Icon position": { "prop": "iconPosition", "values": { "None": null, "Leading": "start", "Trailing": "end" } },
+        "State": "state"
+      }
+    },
+    "Tag": {
+      "component": "Tag",
+      "importPath": "@your-ds/react",
+      "selector": "[data-ds-component='Tag']",
+      "props": {
+        "Intent": { "prop": "intent", "values": { "Neutral": "neutral", "Success": "success", "Warning": "warning", "Danger": "danger" } },
+        "Size": { "prop": "size", "values": { "Small": "sm", "Medium": "md" } }
+      }
+    },
+    "Text field": {
+      "component": "TextField",
+      "kind": "textbox",
+      "importPath": "@your-ds/react",
+      "selector": "[data-ds-component='TextField']",
+      "props": {
+        "Size": { "prop": "size", "values": { "Medium": "md", "Large": "lg" } },
+        "Helper text": { "prop": "helperText", "values": { "True": "<string>", "False": null } },
+        "State": "state"
+      }
+    }
+  },
+  "rawPrimitives": [
+    { "selector": "button:not([data-ds-component])", "use": "Button", "note": "Native button outside the design system." },
+    { "selector": "input[type=text]:not([data-ds-input])", "use": "Text field", "note": "Bare input without the design-system wrapper." },
+    { "selector": "span[class*='pill'], span[class*='badge']", "use": "Tag", "note": "Hand-styled status pills." }
+  ]
+}
