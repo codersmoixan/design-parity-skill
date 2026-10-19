@@ -137,7 +137,7 @@
           "type": "string",
           "pattern": "\\.md$",
           "errorMessage": "must be the path of a Markdown file ending in .md (the JSON log is written next to it)",
-          "default": "qa-reports/design-debt.md",
+          "default": "design-debt.md",
           "description": "Markdown design-debt log written by scripts/debt-log.mjs (the JSON log sits next to it, with .json for .md)."
         },
         "ranking": {

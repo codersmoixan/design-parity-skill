@@ -49,7 +49,7 @@ import {
   wholePageLine,
   writePass as writePassFile,
 } from './lib/pass.mjs';
-import { applyAnswers, looksSecret } from './lib/setup.mjs';
+import { applyAnswers, ensureUiProjectDir, looksSecret, reportOutDir, resolveDefaultConfigPath } from './lib/setup.mjs';
 import { designSystemNotChecked, explainVerdict, scorecardHeadline } from './lib/ranking.mjs';
 import { configFingerprint } from './lib/build-report.mjs';
 import { ANNOTATIONS_FILE } from './lib/annotations.mjs';
@@ -190,8 +190,8 @@ gate      The CI check: validate.mjs first (a report.json the build would not ma
   (URL paths) so a mock's urlPattern can name one.
 
 Options:
-  --feature <slug>   the ticket key or feature name; the folder is <report.outDir>/<slug>
-  --dir <dir>        the report folder start printed (qa-reports/<slug>, or a sibling)
+  --feature <slug>   the ticket key or feature name; the folder is qa/ui/<slug>
+  --dir <dir>        the report folder start printed (qa/ui/<slug>, or a sibling)
   --run <id>         the run id start printed (default: DESIGN_QA_RUN_ID). Required by evidence,
                      report and finish; another run's folder is refused (exit 5). start --resume
                      continues only a pass started with the same --label
@@ -388,7 +388,8 @@ function passContext(o, { needRun = true } = {}) {
     if (!runId) throw usageError(`--run <id> is required: the run id pass.mjs start printed (or check: ${scriptCmd('pass.mjs', 'status', '--dir', show(dir))})`);
     assertRunOwnsDir(dir, { runId, required: true });
   }
-  const configFile = o.config ? path.resolve(o.config) : pass?.config ? path.resolve(pass.config) : existsSync('design-qa.config.json') ? path.resolve('design-qa.config.json') : null;
+  const preferredConfig = resolveDefaultConfigPath();
+  const configFile = o.config ? path.resolve(o.config) : pass?.config ? path.resolve(pass.config) : existsSync(preferredConfig) ? preferredConfig : null;
   const config = configFile ? loadConfig(configFile) : null;
   const surfaceName = pickSurface(config, o.surface ?? pass?.surface ?? null);
   return { o, dir, rel: show(dir), pass, runId: runId ?? pass?.runId ?? null, configFile, config, surfaceName, verbose: Boolean(o.verbose), lines: [] };
@@ -510,7 +511,8 @@ async function start(o) {
   }
   if (o.ticket && !classifyInput(String(o.ticket).toUpperCase()).key) throw usageError(`--ticket must be a ticket key like ABC-123 (got "${oneLine(o.ticket)}")`);
   const ticket = o.ticket ? String(o.ticket).toUpperCase() : null;
-  const defaultConfig = path.resolve('design-qa.config.json');
+  ensureUiProjectDir();
+  const defaultConfig = resolveDefaultConfigPath();
   let configFile = o.config ? path.resolve(o.config) : existsSync(defaultConfig) ? defaultConfig : null;
   const ci = Boolean(o.ci);
   const ctx = { o, dir: null, rel: null, runId: callerRunId(o.run), verbose: Boolean(o.verbose), lines: [], pendingLogs: [] };
@@ -552,7 +554,7 @@ async function start(o) {
   }
 
   // 2. The run: its own report folder, locked.
-  const outDir = typeof config?.report?.outDir === 'string' && config.report.outDir.trim() ? config.report.outDir : 'qa-reports';
+  const outDir = reportOutDir(config);
   const wantedDir = o.dir ? path.resolve(o.dir) : path.resolve(outDir, feature);
   if (o.resume) {
     // Only the agent that started a pass continues it: a resume by another label starts fresh.

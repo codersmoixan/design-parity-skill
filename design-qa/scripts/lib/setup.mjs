@@ -42,6 +42,45 @@ const CAPTURE = path.join(SCRIPTS_DIR, 'capture.mjs');
 const TEMPLATES = path.join(SKILL_DIR, 'references', 'templates');
 
 export const CONFIG_FILE = 'design-qa.config.json';
+/** UI test project, relative to the repository under test. Reports, config, and logs go here. */
+export const UI_PROJECT_DIR = 'qa/ui';
+const LEGACY_OUT_DIR = 'qa-reports';
+
+/** `qa/ui` at `cwd` (the repository root when commands run from there). */
+export function ensureUiProjectDir(cwd = process.cwd()) {
+  const dir = path.resolve(cwd, UI_PROJECT_DIR);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Config to read or create. An existing `qa/ui/design-qa.config.json` wins, then a
+ * legacy `./design-qa.config.json`. When neither exists, the new file is `qa/ui/design-qa.config.json`.
+ */
+export function resolveDefaultConfigPath(cwd = process.cwd()) {
+  const preferred = path.resolve(cwd, UI_PROJECT_DIR, CONFIG_FILE);
+  if (existsSync(preferred)) return preferred;
+  const legacy = path.resolve(cwd, CONFIG_FILE);
+  if (existsSync(legacy)) return legacy;
+  return preferred;
+}
+
+/** Report parent. Empty and the old `qa-reports` default both mean `qa/ui`. */
+export function reportOutDir(config) {
+  const raw = typeof config?.report?.outDir === 'string' ? config.report.outDir.trim() : '';
+  if (!raw || raw === LEGACY_OUT_DIR) return UI_PROJECT_DIR;
+  return raw.replace(/\/+$/, '');
+}
+
+/** Repository root for discovery. A config inside `qa/ui` still scans the git work tree. */
+export function projectRootForConfig(configPath, cwd = process.cwd()) {
+  const dir = path.dirname(path.resolve(configPath));
+  if (existsSync(dir)) {
+    const fromConfig = gitRoot(dir);
+    if (fromConfig) return fromConfig;
+  }
+  return gitRoot(cwd) || path.resolve(cwd);
+}
 export const DEFAULT_ENV_PREFIX = 'DESIGN_QA_APP';
 /** Where save-session puts sessions by default: per user, outside every repository. */
 export const SESSION_DIR = '~/.design-qa/sessions';
@@ -233,7 +272,7 @@ function stringsIn(value, out = []) {
 
 const SKIP_DIRS = new Set([
   'node_modules', 'bower_components', 'jspm_packages', 'vendor', 'dist', 'build', 'out', 'target', 'coverage',
-  'storybook-static', 'qa-reports', 'tmp', 'temp', '__pycache__', 'venv', 'Pods', 'DerivedData',
+  'storybook-static', 'qa', 'qa-reports', 'tmp', 'temp', '__pycache__', 'venv', 'Pods', 'DerivedData',
 ]);
 const MAX_DEPTH = 5;
 const MAX_ENTRIES = 6000;
@@ -1376,7 +1415,7 @@ export function buildCheck({ root, configPath, config, configProblem = null, con
   }
 
   // Reports folder.
-  const outDir = config?.report?.outDir || 'qa-reports';
+  const outDir = reportOutDir(config);
   const commit = config?.report?.commit;
   const ignored = discovered.reportsIgnored;
   if (commit === false && ignored === false) row('reports', false, `reports go to ${outDir}/, which git does not ignore`, `Add the line "/${outDir.replace(/^\/+|\/+$/g, '')}/" to .gitignore.`);
@@ -1467,10 +1506,11 @@ export function hasDisplay({ env = process.env, platform = process.platform } = 
 
 /** The whole check: tools, config, discovery, probe; then buildCheck. */
 export async function runCheck({ configPath, surface = null, url = null, ci = false, quick = false, env = process.env, agent = {}, timeoutMs = DEFAULT_PROBE_TIMEOUT_MS, triggers = {} }) {
-  const root = path.dirname(configPath);
+  const configDir = path.dirname(path.resolve(configPath));
+  const root = projectRootForConfig(configPath);
   const { config, problem, warnings } = loadConfig(configPath);
   const discovered = discoverRepo(root, { env });
-  discovered.reportsIgnored = gitIgnored(root, `${(config?.report?.outDir || 'qa-reports').replace(/\/+$/, '')}/report.json`);
+  discovered.reportsIgnored = gitIgnored(root, `${reportOutDir(config)}/report.json`);
 
   const doctor = await import('../doctor.mjs');
   const tools = await doctor.check({ launchBrowser: !quick });
@@ -1481,7 +1521,7 @@ export async function runCheck({ configPath, surface = null, url = null, ci = fa
   let session = null;
   try {
     // The session pointer only matters for auth type storageState.
-    session = config && !problem && config.app?.auth?.type === 'storageState' ? storageStateFromConfig(config, { env, configDir: root }) : null;
+    session = config && !problem && config.app?.auth?.type === 'storageState' ? storageStateFromConfig(config, { env, configDir }) : null;
   } catch (err) {
     probeSkipped = oneLine(err.message);
   }
@@ -1872,7 +1912,7 @@ function answerToWrites(id, value, { discovered, config, root }) {
       const no = [false, 'no', 'keep-out', 'false'].includes(w);
       if (!yes && !no) throw new AnswerError('reports: expected yes (commit them) or no (keep them out of git)');
       set('report.commit', yes);
-      if (config?.report?.outDir === undefined) set('report.outDir', 'qa-reports');
+      if (config?.report?.outDir === undefined || config?.report?.outDir === LEGACY_OUT_DIR) set('report.outDir', UI_PROJECT_DIR);
       break;
     }
     default:
@@ -1898,7 +1938,7 @@ function defaultConfig() {
     app: { baseUrl: null, start: null, readyUrl: '/', auth: { type: 'none', envPrefix: DEFAULT_ENV_PREFIX } },
     surfaces: {},
     designSystem: {},
-    report: { outDir: 'qa-reports', topN: 5 },
+    report: { outDir: UI_PROJECT_DIR, topN: 5 },
     figma: { access: ['mcp', 'rest', 'manual'] },
     capture: { driver: 'script' },
   };
@@ -1938,7 +1978,7 @@ const show = (v) => (v === undefined ? '(not set)' : oneLine(JSON.stringify(v)))
  */
 export function applyAnswers({ configPath, answers, env = process.env, dryRun = false, extraSets = [], acceptAssumed = false, url = null }) {
   if (!isPlainObject(answers)) throw usageError('--answers must be a JSON object { "<question id>": <answer>, … }');
-  const root = path.dirname(configPath);
+  const root = projectRootForConfig(configPath);
   let st = null;
   try {
     st = lstatSync(configPath);
@@ -1958,7 +1998,7 @@ export function applyAnswers({ configPath, answers, env = process.env, dryRun = 
     if (!isPlainObject(before)) throw new CliError(`${path.basename(configPath)} must hold a JSON object`, 1);
   }
   const discovered = discoverRepo(root, { env });
-  discovered.reportsIgnored = gitIgnored(root, `${(before?.report?.outDir || 'qa-reports').replace(/\/+$/, '')}/report.json`);
+  discovered.reportsIgnored = gitIgnored(root, `${reportOutDir(before)}/report.json`);
   const problems = [];
   const sets = [...extraSets];
   const notes = [];
@@ -2102,7 +2142,7 @@ function noDisplayHelp(url, file, record) {
  * Never prints the session. → { code, path, verified, changes, message }.
  */
 export async function saveSession({ url, configPath = null, config = null, out = null, signedInSelector = null, timeoutMs = DEFAULT_SESSION_TIMEOUT_MIN * 60000, env = process.env, writeConfig = true, launch = null, display = null, log = (m) => process.stderr.write(`${m}\n`), probeTimeoutMs = DEFAULT_PROBE_TIMEOUT_MS, existing = false }) {
-  const root = configPath ? path.dirname(configPath) : process.cwd();
+  const root = configPath ? projectRootForConfig(configPath) : process.cwd();
   const file = out ? expandUserPath(out, { env }) : defaultSessionPath(root, url, env);
   const problem = sessionPathProblem(file, root);
   if (problem) throw usageError(problem);
@@ -2321,7 +2361,7 @@ Exit codes:
                 · 4 the browser does not open`;
 
 function resolveConfigPath(value) {
-  return path.resolve(value ?? CONFIG_FILE);
+  return value ? path.resolve(value) : resolveDefaultConfigPath();
 }
 
 async function mainCheck(argv) {
@@ -2346,6 +2386,7 @@ async function mainCheck(argv) {
     console.log(HELP);
     return 0;
   }
+  ensureUiProjectDir();
   const agent = parseAgentFlags(values.agent ?? []);
   const ask = (values.ask ?? []).flatMap((a) => a.split(',')).map((a) => a.trim()).filter(Boolean);
   for (const id of ask) if (!ASKABLE_IDS.includes(id)) throw usageError(`--ask: unknown question "${oneLine(id)}" (one of: ${ASKABLE_IDS.join(', ')})`);
@@ -2469,7 +2510,7 @@ async function mainExportTheme(argv) {
     return 0;
   }
   if (!values.from) throw usageError('--from <theme file> is required');
-  const root = path.dirname(resolveConfigPath(values.config));
+  const root = projectRootForConfig(resolveConfigPath(values.config));
   let r;
   try {
     r = exportTheme({ root, from: values.from, out: values.out ?? null });

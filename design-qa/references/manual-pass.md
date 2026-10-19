@@ -10,7 +10,7 @@ Arguments can combine a design link, a ticket key (`ABC-123`), a surface name fr
 
 - **The design**, first match wins: `--prototype <url>` or a prototype URL argument → an explicit Figma link (design or prototype) → Figma links in the ticket → prototype links in the ticket (confirm first; ci mode never uses them) → `surfaces.<name>.prototype` → `surfaces.<name>.figma`. Exactly one source of truth per pass. Several frames of one feature are states; several screens of one flow are one multi-screen pass (`<screen>/<state>` ids). Frames of unrelated features: ask which one.
 - **The app**, first match wins: `--url`; a preview URL from the ticket (confirmed by the person; in ci mode only with `ticket.trustPreviewUrl`); `app.baseUrl` plus `surfaces.<name>.route`; else ask (ci mode: stop, naming the missing input).
-- **The feature slug**: the ticket key, else the surface name, else the design's frame or page name, in kebab-case. The report folder is `<report.outDir>/<slug>/` (default `qa-reports/<slug>/`), written `<dir>` below.
+- **The feature slug**: the ticket key, else the surface name, else the design's frame or page name, in kebab-case. The report folder is `<report.outDir>/<slug>/` (default `qa/ui/<slug>/`), written `<dir>` below.
 
 ## Phase 0: setup and the run lock
 

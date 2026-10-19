@@ -25,6 +25,18 @@ Design parity is the bundled [design-qa](design-qa/SKILL.md) skill, based on ups
 2. Resolve paths from the `design-qa` directory next to this file, not from the app repository. When that file says `node scripts/<name>.mjs` or `references/<name>.md`, use `design-qa/scripts/<name>.mjs` and `design-qa/references/<name>.md`. Run the commands from the repository under test. Copy every printed `Next:` command exactly (chained steps use `seq.mjs`, not shell `&&`).
 3. Write the pass only inside the report directory that `pass.mjs start` prints.
 
+## UI project directory
+
+The repository under test is the working directory. On every pass, create `qa/ui` at that repository root when it is missing. `pass.mjs start` and `setup.mjs check` do this themselves.
+
+Every UI-test project file this skill generates goes under `qa/ui`, not the repository root and not `qa-reports/`:
+
+- `qa/ui/design-qa.config.json` — created when the repository has no config yet. An existing `./design-qa.config.json` is still read.
+- `qa/ui/<slug>/` — that pass: evidence, `findings.json`, `report.html`, logs.
+- `qa/ui/dismissed.json`, `qa/ui/design-debt.md`, and the other cumulative logs, beside the feature folders.
+
+`report.outDir` is `qa/ui`. An old `qa-reports` value is treated as `qa/ui`. A pass folder is `qa/ui/<slug>`, never `qa/ui` itself (that folder also holds the config). `.env` stays at the repository root and is not read from `qa/ui`.
+
 A pass is not finished until `pass.mjs finish` prints that it is finished, or the bundled skill says the pass is blocked. The user-facing reply is the reply specified in `design-qa/SKILL.md`.
 
 ## When waiting on the person (hard rule)
@@ -63,7 +75,7 @@ Before `pass.mjs start`, decide Figma access in this order — do **not** authen
 - A section the app hides on purpose is a finding. Only data values, names, dates, counts, and row contents may differ.
 - A state that exists only in the app is not a parity finding. It waits for design backfill.
 - Do not dismiss a finding, invent pixel boxes, or hand-write `report.json` or `annotations.json`.
-- Do not type, ask for, print, or store a token or password. Sign-in stays with the bundled skill. If someone pastes a Figma token into chat, tell them to rotate it and never echo it back. Prefer `FIGMA_TOKEN` (and other secrets) in the app repo's `.env` / `.env.local`; scripts load those into the environment automatically when unset in the shell. Never commit `.env`.
+- Do not type, ask for, print, or store a token or password. Sign-in stays with the bundled skill. If someone pastes a Figma token into chat, tell them to rotate it and never echo it back. Prefer `FIGMA_TOKEN` (and other secrets) in the app repo's `.env` / `.env.local` at the repository root; scripts load those into the environment automatically when unset in the shell. Never commit `.env`. Do not look for `.env` under `qa/ui`.
 - Skill deps (`pixelmatch`, `pngjs`, `playwright`) install only in this skill's `design-qa` folder — not in the app repository. Commands still run from the repository under test (cwd). Node.js 20 or newer required.
 - If those packages cannot be resolved: run `node …/design-qa/scripts/ensure-deps.mjs`. Exit 0 → continue. Exit 3 → ask once to install in the skill folder (does not modify the app repo); on yes run `ensure-deps.mjs --grant` (writes `~/.design-qa/auto-install.json` so later passes need not ask). When `DESIGN_QA_AUTO_INSTALL=1` or that consent file exists, run `ensure-deps.mjs` without asking. Still ask before migrations or seeds.
 - Before the first live capture on a remote URL: `start` exits 3 with Ask-the-person questions — surface them in chat (see hard rule above); do not skip to evidence (references/browser-capture.md).

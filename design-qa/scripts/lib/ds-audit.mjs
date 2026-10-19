@@ -1054,7 +1054,7 @@ export function knownDriftHint(drifts, { actual = [], expected = [] }) {
 // ---------------------------------------------------------------------------
 
 const SOURCE_EXT = /\.(m?[jt]sx?|cjs|vue|svelte)$/i;
-const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', 'coverage', '.next', '.nuxt', '.cache', 'storybook-static', '.turbo', 'vendor', 'qa-reports']);
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', 'coverage', '.next', '.nuxt', '.cache', 'storybook-static', '.turbo', 'vendor', 'qa', 'qa-reports']);
 
 /**
  * Which local source files import each library's package: { note, root, filesScanned,

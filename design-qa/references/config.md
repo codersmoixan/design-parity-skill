@@ -40,12 +40,12 @@ String values may hold `${ENV_VAR}` placeholders, expanded at capture time (a mi
 | `tolerances.colorDeltaE` | 1.5 | Allowed CIEDE2000 colour difference; alpha within 0.01. |
 | `tolerances.pixelDiff.pass`, `.review` | 1, 5 | Pixel-diff bands, in percent of the page. |
 | `commands.test`, `.lint`, `.cwd` | null, `[]`, `.` | Test and lint commands for the fix loop, and where they run. |
-| `report.outDir` | `qa-reports` | Parent of `<feature>/`. |
+| `report.outDir` | `qa/ui` | Parent of `<feature>/`. The old `qa-reports` value is treated as `qa/ui`. |
 | `report.commit` | none | Reports committed (`true`) or kept out of git (`false`: `outDir` belongs in `.gitignore`). |
 | `report.topN` | 5 | Fix-now size; `--top` overrides it. |
 | `report.embedImages` | true | Inline images so `report.html` is one file. |
 | `report.ranking` | see references/report.md | Severity and ledger weights. |
-| `report.debtLog` | `qa-reports/design-debt.md` | The cumulative debt log; must stay inside the config's folder. |
+| `report.debtLog` | `design-debt.md` | The cumulative debt log, next to the feature folders under `qa/ui` when the config lives there; must stay inside the config's folder. |
 | `ticket.provider` | `none` | `jira` (has a script), `linear`, `github` (MCP or pasted), `none`. |
 | `ticket.baseUrl` | null | The tracker's site. |
 | `ticket.writeBack` | false | Allow comments on the audited ticket, after the person's yes; never in ci. |

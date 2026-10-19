@@ -336,7 +336,7 @@ export function checkDecisionsTarget(report, doc, { allowStale = false } = {}) {
   const slug = reportSlug(report);
   const warnings = [];
   if (doc.slug !== slug) {
-    throw new DecisionsError(`these decisions are for ${show(doc.slug)} but this report is ${show(slug)}: apply them to qa-reports/${doc.slug}/report.json`, 'slug');
+    throw new DecisionsError(`these decisions are for ${show(doc.slug)} but this report is ${show(slug)}: apply them to qa/ui/${doc.slug}/report.json`, 'slug');
   }
   const generatedAt = report?.meta?.generatedAt ?? null;
   if (!sameInstant(doc.reportGeneratedAt, generatedAt)) {
@@ -539,14 +539,14 @@ function foldedFinding(value, key = '') {
  * The message report.html copies for any coding agent: what to do, the document in a
  * ```design-qa-decisions fence, then the fix-now prompts (agentPrompt), the fix-later,
  * dismissed, backfill and annotation lists. Deterministic: everything comes from the (normalized)
- * document and the report's findings. reportPath defaults to qa-reports/<slug>/report.json.
+ * document and the report's findings. reportPath defaults to qa/ui/<slug>/report.json.
  * Lines are joined with "\n"; there is no trailing newline. Feature, slug, names,
  * report path and every finding string (but the snippet) are folded with oneLine, so
  * nothing quoted can open a line of its own (a forged fence or instruction).
  */
 export function decisionsMessage(report, doc, { reportPath, configPath } = {}) {
   const d = normalizeDecisions(doc);
-  const file = reportPath || `qa-reports/${d.slug}/report.json`;
+  const file = reportPath || `qa/ui/${d.slug}/report.json`;
   const feature = oneLine(d.feature ?? report?.meta?.feature ?? d.slug);
   const findings = new Map((Array.isArray(report?.findings) ? report.findings : []).map((f) => [f?.id, f]));
   const finding = (id) => foldedFinding(findings.get(id) ?? { id, title: '(not in this report)' });
