@@ -53,6 +53,7 @@ import { assertRunOwnsOutput } from './lib/pass.mjs';
 import { pngSize } from './lib/png.mjs';
 import { exactStateName } from './lib/state-discovery.mjs';
 import { appKind, designSource } from './lib/target-url.mjs';
+import { overlayProjectEnv } from './lib/setup.mjs';
 
 const HELP = `Capture the app in each state (screenshot + computed styles + DOM snapshot + motion).
 
@@ -1995,7 +1996,7 @@ async function main(argv) {
   if (values.surface && !values.config) throw usageError('--surface needs --config <design-qa.config.json>');
   if (values.screen && !values.config) throw usageError('--screen needs --config <design-qa.config.json>');
   const configFile = values.config ? path.resolve(values.config) : null;
-  const config = configFile ? readJsonFile(configFile, 'config') : null;
+  const config = configFile ? overlayProjectEnv(readJsonFile(configFile, 'config')) : null;
   const cfg = config ? configDefaults(config, values.surface ?? null, { side, screen: values.screen ?? null }) : null;
   if (cfg && !values.url) values.url = cfg.url;
   if (side === 'design' && !values.url) {

@@ -777,6 +777,40 @@ function appUrlOf(config, url) {
 }
 
 /**
+ * Fill gaps from the repository-root `.env` (already loaded into `env`). A value already
+ * stored in the config wins. An empty or invalid variable is ignored so the person is asked.
+ * `config` may be null (no file yet): the result is a plain object used for this run.
+ */
+export function overlayProjectEnv(config, env = process.env) {
+  const cfg = JSON.parse(JSON.stringify(config ?? {}));
+  if (!cfg.app) cfg.app = {};
+  if (!cfg.app.auth) cfg.app.auth = { type: 'none', envPrefix: DEFAULT_ENV_PREFIX };
+  const prefix = cfg.app.auth.envPrefix || DEFAULT_ENV_PREFIX;
+  const authType = cfg.app.auth.type;
+  if (!authType || authType === 'none') {
+    if (env[`${prefix}_STORAGE_STATE`]) cfg.app.auth.type = 'storageState';
+    else if (env[`${prefix}_COOKIE`]) cfg.app.auth.type = 'cookie';
+    else if (env[`${prefix}_USER`] && env[`${prefix}_PASS`] && String(env[`${prefix}_AUTH`] ?? '').trim().toLowerCase() === 'basic') cfg.app.auth.type = 'basic';
+  }
+  if (!cfg.ticket) cfg.ticket = {};
+  if ((cfg.ticket.provider == null || cfg.ticket.provider === '') && (env.JIRA_BASE_URL || env.JIRA_EMAIL || env.JIRA_API_TOKEN)) cfg.ticket.provider = 'jira';
+  if ((cfg.ticket.baseUrl == null || cfg.ticket.baseUrl === '') && env.JIRA_BASE_URL) cfg.ticket.baseUrl = String(env.JIRA_BASE_URL).trim();
+  if (cfg.app.preCapture === undefined) {
+    const raw = String(env.DESIGN_QA_HIDE ?? '').trim();
+    if (raw === 'none') cfg.app.preCapture = {};
+    else if (raw && raw !== 'find') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) cfg.app.preCapture = parsed;
+      } catch {
+        // Not JSON: ask the person.
+      }
+    }
+  }
+  return cfg;
+}
+
+/**
  * The questions still open, in order of importance, given the state of things. Pure:
  * every input is passed in. `probe` is the mapped probe result (see mapProbe).
  *
@@ -791,6 +825,7 @@ function appUrlOf(config, url) {
  * → { questions, assumed: [{ id, title, value, why, writes }], deferred: [{ id, when }] }.
  */
 export function buildQuestions({ config, discovered, url, probe, env = process.env, agent = {}, display = true, triggers = {} }) {
+  config = overlayProjectEnv(config, env, { discovered });
   const ds = config?.designSystem ?? {};
   const forced = new Set(triggers.ask ?? []);
   const appUrl = appUrlOf(config, url);
@@ -878,7 +913,7 @@ export function buildQuestions({ config, discovered, url, probe, env = process.e
       }
     }
     const dependsOn = provider === undefined && !discovered.ticketProvider ? { dependsOn: { id: 'ticket-tool', values: ['jira'] } } : {};
-    if ((jira || dependsOn.dependsOn) && config?.ticket?.baseUrl === undefined && !forced.has('ticket-site')) ask('ticket-site', dependsOn);
+    if ((jira || dependsOn.dependsOn) && (config?.ticket?.baseUrl == null || config?.ticket?.baseUrl === '') && !env.JIRA_BASE_URL && !forced.has('ticket-site')) ask('ticket-site', dependsOn);
     const jiraEnv = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN'].every((n) => env[n]);
     if ((jira || dependsOn.dependsOn) && !jiraEnv && agent['ticket-mcp'] !== true && !forced.has('ticket-token')) {
       ask('ticket-token', { ...dependsOn, ...(agent['ticket-mcp'] === undefined ? { unless: 'ticket-mcp' } : {}) });
@@ -1508,9 +1543,11 @@ export function hasDisplay({ env = process.env, platform = process.platform } = 
 export async function runCheck({ configPath, surface = null, url = null, ci = false, quick = false, env = process.env, agent = {}, timeoutMs = DEFAULT_PROBE_TIMEOUT_MS, triggers = {} }) {
   const configDir = path.dirname(path.resolve(configPath));
   const root = projectRootForConfig(configPath);
-  const { config, problem, warnings } = loadConfig(configPath);
+  const loaded = loadConfig(configPath);
+  let { config, problem, warnings } = loaded;
   const discovered = discoverRepo(root, { env });
   discovered.reportsIgnored = gitIgnored(root, `${reportOutDir(config)}/report.json`);
+  const runtimeConfig = overlayProjectEnv(config, env, { discovered });
 
   const doctor = await import('../doctor.mjs');
   const tools = await doctor.check({ launchBrowser: !quick });
@@ -1521,7 +1558,7 @@ export async function runCheck({ configPath, surface = null, url = null, ci = fa
   let session = null;
   try {
     // The session pointer only matters for auth type storageState.
-    session = config && !problem && config.app?.auth?.type === 'storageState' ? storageStateFromConfig(config, { env, configDir }) : null;
+    session = runtimeConfig.app?.auth?.type === 'storageState' ? storageStateFromConfig(runtimeConfig, { env, configDir }) : null;
   } catch (err) {
     probeSkipped = oneLine(err.message);
   }
@@ -1536,7 +1573,7 @@ export async function runCheck({ configPath, surface = null, url = null, ci = fa
   else if (problem) probeSkipped = 'the config is invalid';
   else if (!browserOk) probeSkipped = 'the browser does not launch (see tools:chromium)';
   else {
-    const wantsSession = config?.app?.auth?.type === 'storageState';
+    const wantsSession = runtimeConfig.app?.auth?.type === 'storageState';
     let sessionPath = null;
     let sessionUsed = null;
     if (wantsSession && session?.exists) {
@@ -1544,7 +1581,7 @@ export async function runCheck({ configPath, surface = null, url = null, ci = fa
       sessionUsed = session.source === 'env' ? session.envName : tildePath(session.path);
     }
     // storageState without a session file yet: load the app without one, to learn whether it needs one.
-    const raw = await probeApp({ config, url: url || assumedUrl, surface, env, timeoutMs, sessionPath, authNone: wantsSession && !sessionPath });
+    const raw = await probeApp({ config: runtimeConfig, url: url || assumedUrl, surface, env, timeoutMs, sessionPath, authNone: wantsSession && !sessionPath });
     probe = mapProbe(raw, { sessionUsed });
   }
   const result = buildCheck({ root, configPath, config, configProblem: problem, configWarnings: warnings, discovered, tools, probe, probeSkipped, url, env, agent, display: hasDisplay({ env }), session, ci, triggers });

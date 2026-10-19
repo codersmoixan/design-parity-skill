@@ -26,6 +26,7 @@ import {
 } from './lib/ds-audit.mjs';
 import { pngSize } from './lib/png.mjs';
 import { validateConfig } from './lib/schema-check.mjs';
+import { overlayProjectEnv } from './lib/setup.mjs';
 import { assertRunOwnsOutput } from './lib/pass.mjs';
 
 /** Candidates listed on stdout by default; ds-audit.json always holds all of them. */
@@ -243,6 +244,7 @@ async function main(argv) {
     config = readJsonFile(file, 'config', 2);
     const cv = validateConfig(config);
     if (!cv.valid) throw usageError(`--config is invalid:\n${cv.errors.map((e) => `  ${oneLine(e.path)}: ${oneLine(e.message)}`).join('\n')}`);
+    config = overlayProjectEnv(config);
     configDir = path.dirname(file);
   }
   const ds = config?.designSystem ?? {};

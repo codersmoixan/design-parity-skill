@@ -28,7 +28,7 @@ With-data (else the first state) is captured first. After it passed signed in, a
 
 ## Before the first live capture
 
-On a **remote** app URL (preview / staging / prod), `pass.mjs start` exits **3** and prints an **Ask the person** block. The agent must put that block in the **chat reply** (person's language) and must not run `Next:` until they answer (or say to use defaults). Answers go to `<dir>/pre-capture-answers.json`; `Next:` runs `ack-pre-capture` then design fetch / evidence.
+On a **remote** app URL (preview / staging / prod), `pass.mjs start` exits **3** and prints an **Ask the person** block, unless both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are set in the repository-root `.env` or the shell. When both are set, do not ask: `none` hides nothing, `find` means you still look for the banner, a JSON object is the preCapture, and `DESIGN_QA_SIGNED_IN=true` without a saved session opens `save-session`. When the block is printed, the agent must put it in the **chat reply** (person's language) and must not run `Next:` until they answer (or say to use defaults). Answers go to `<dir>/pre-capture-answers.json`; `Next:` runs `ack-pre-capture` then design fetch / evidence.
 
 Ask **once** (same round as any open setup questions when possible):
 

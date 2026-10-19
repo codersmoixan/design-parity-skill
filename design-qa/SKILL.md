@@ -37,7 +37,7 @@ node scripts/pass.mjs start --feature <slug> [--design '<url>'] [--prototype '<u
 |---|---|
 | 0 | Optional questions are printed in full with their answers line: ask once. |
 | 3, questions or "Assumed" | **Your next chat message must ask the person** (their language; copy options). Ask them all in one round with the "Assumed" list (references/onboarding.md), save the answers where the `Do:` line says, then run `Next:`: it saves them and restarts. Never end the turn with only tool output. |
-| 3, Ask the person / pre-capture | Remote app URL before first capture: **surface the Ask-the-person block in chat now**. After they reply, write `<dir>/pre-capture-answers.json`, then run `Next:` (`ack-pre-capture` then design/evidence). Do not run evidence until they answer (or say use defaults). |
+| 3, Ask the person / pre-capture | Remote app URL before first capture, when `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are not both set: **surface the Ask-the-person block in chat now**. After they reply, write `<dir>/pre-capture-answers.json`, then run `Next:` (`ack-pre-capture` then design/evidence). Do not run evidence until they answer (or say use defaults). When both variables are set, do not ask. |
 | 3, sign-in | Ask any printed questions first **in chat**. Run `Next:` as a long-running command (it chains `apply`, `save-session` and start). The person signs in in the window; you type nothing. |
 | 5 | The folder belongs to another run: start your own pass without `--resume`. |
 
@@ -47,7 +47,7 @@ The `Do:` lines say which way applies:
 
 - **Coded prototype.** One screen, no extra states: nothing to do. Several screens: `start --screen <id>=<prototype url>,<app url>` once per screen. Extra states: add them to `<dir>/states.json` before `evidence`, keyed `<screen>/<state>` (`"cart/empty": { "query": "?empty=1" }`; references/prototype-source.md). `start` prints a skeleton.
 - **Figma with `FIGMA_TOKEN` (preferred).** When the token is in the shell or project `.env` / `.env.local`, run the printed `figma-fetch.mjs` command (via `seq.mjs` when chained with evidence). Skip the MCP path even if Figma tools are available. **Default is the linked frame only.** Use `start --multi-screen` or `figma-fetch --screens auto` only for a whole page/section with several app routes. Never paste the token into chat or the command line.
-- **Pre-capture chrome.** On a remote (preview/staging/prod) app URL, `start` exits 3 with an **Ask the person** block (cookie/consent/chat hide + signed-in header). Copy that block into chat immediately; after answers, write `pre-capture-answers.json` and run `Next:` (`ack-pre-capture`). references/browser-capture.md.
+- **Pre-capture chrome.** On a remote (preview/staging/prod) app URL, `start` exits 3 with an **Ask the person** block (cookie/consent/chat hide + signed-in header) unless the repository-root `.env` (or the shell) sets both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN`. When both are set, use them and do not ask. Copy the block into chat only when it is printed; after answers, write `pre-capture-answers.json` and run `Next:` (`ack-pre-capture`). references/browser-capture.md.
 - **Figma MCP (only when there is no token).**
   1. `get_metadata` on the widest node linked (the section or page), saved as returned to `<dir>/evidence/metadata.xml`.
   2. `node scripts/figma-mcp-spec.mjs --metadata <dir>/evidence/metadata.xml --url '<figma-url>' --out <dir>/evidence` prints each state's `maxDimension`.

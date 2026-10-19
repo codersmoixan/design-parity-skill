@@ -47,7 +47,17 @@ Whenever `pass.mjs` exits **3**, or a `Do:` line says to ask / tell the person (
 2. Do **not** end the turn with only tool/log output, and do **not** run `Next:` until they reply (or explicitly say to use defaults / skip).
 3. Prefer copying the printed `Ask the person` / `Question` block into chat; do not bury it inside a silent tool loop.
 
-Remote app URLs (preview / staging / prod): `start` exits 3 with pre-capture questions before the first live capture. After they answer, write `<dir>/pre-capture-answers.json` and run the printed `Next:` (`ack-pre-capture`, then design fetch / evidence).
+Remote app URLs (preview / staging / prod): `start` exits 3 with pre-capture questions before the first live capture, unless the repository-root `.env` (or the shell) already sets both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN`. When those are set, do not ask. When the block is printed, after they answer, write `<dir>/pre-capture-answers.json` and run the printed `Next:` (`ack-pre-capture`, then design fetch / evidence).
+
+**Root `.env` before any question.** Scripts load `.env` / `.env.local` from the repository root (never from `qa/ui`). If a variable below is set, use it and do not ask. If it is unset, ask as usual. A value already in `qa/ui/design-qa.config.json` wins over `.env`.
+
+| Set in `.env` | Do not ask |
+|---|---|
+| `DESIGN_QA_AUTO_INSTALL=1` | Skill-folder package install |
+| `FIGMA_TOKEN` | Figma MCP auth (`--agent figma-mcp=no`, REST) |
+| `JIRA_BASE_URL` + `JIRA_EMAIL` + `JIRA_API_TOKEN` | Jira credentials and the Jira site URL |
+| `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` | Remote cookie/consent/chat and signed-in header (both required) |
+| `<prefix>_STORAGE_STATE`, `<prefix>_COOKIE`, or `<prefix>_USER` + `<prefix>_PASS` with `<prefix>_AUTH=basic` | App auth type. Default prefix is `DESIGN_QA_APP`. Still ask when the saved session is missing or the probe still sees a sign-in page. |
 
 ## Inputs
 

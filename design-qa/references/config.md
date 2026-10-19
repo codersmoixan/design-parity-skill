@@ -77,8 +77,11 @@ Never in the config, never in reports.
 | `DESIGN_QA_EMBED_BUDGET_BYTES` | Total embedded image size in `report.html` (100 MB). |
 | `DESIGN_QA_AUTO_INSTALL` | `1`: allow `ensure-deps.mjs` to install skill-folder packages without asking. `0`: never auto-install. Unset: use `~/.design-qa/auto-install.json` from a prior `--grant`. |
 | `DESIGN_QA_LOAD_ENV` | `0`: do not load project `.env` / `.env.local`. Default: load from the git root (if any) then the working directory; existing shell env wins. |
-| `FIGMA_TOKEN` | Figma token for `figma-fetch.mjs`. May be set in the project `.env` / `.env.local`. |
-| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira access for `jira-fetch.mjs`. |
+| `FIGMA_TOKEN` | Figma token for `figma-fetch.mjs`. When set, do not ask to connect Figma MCP. |
+| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira access for `jira-fetch.mjs`. All three set: do not ask for Jira credentials. `JIRA_BASE_URL` also fills `ticket.baseUrl` when the config has none. |
+| `DESIGN_QA_HIDE` | `none`, `find`, or a JSON preCapture object. With `DESIGN_QA_SIGNED_IN`, skips the remote pre-capture question. `find` is not saved: the agent still looks for the banner. |
+| `DESIGN_QA_SIGNED_IN` | `true` or `false`. Both this and `DESIGN_QA_HIDE` must be set to skip that question. `true` without `<P>_STORAGE_STATE` / `<P>_COOKIE` / `<P>_USER`+`<P>_PASS` opens `save-session` (the person signs in; nothing is typed for them). |
+| `<P>_AUTH` | `basic` with `<P>_USER` and `<P>_PASS`: set `app.auth.type` to `basic` when the config type is missing or `none`. `<P>_STORAGE_STATE` sets `storageState`; `<P>_COOKIE` sets `cookie`. A type already in the config wins. A missing or expired session is still asked. |
 | `ANTHROPIC_API_KEY` | CI only (references/ci.md). |
 
 ## The design-qa/ folder

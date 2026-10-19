@@ -49,7 +49,7 @@ import {
   wholePageLine,
   writePass as writePassFile,
 } from './lib/pass.mjs';
-import { applyAnswers, ensureUiProjectDir, looksSecret, reportOutDir, resolveDefaultConfigPath } from './lib/setup.mjs';
+import { applyAnswers, ensureUiProjectDir, looksSecret, overlayProjectEnv, reportOutDir, resolveDefaultConfigPath } from './lib/setup.mjs';
 import { designSystemNotChecked, explainVerdict, scorecardHeadline } from './lib/ranking.mjs';
 import { configFingerprint } from './lib/build-report.mjs';
 import { ANNOTATIONS_FILE } from './lib/annotations.mjs';
@@ -362,7 +362,7 @@ const missingScript = (name) =>
 
 function loadConfig(file) {
   if (!file) return null;
-  return readJsonFile(path.resolve(file), 'config');
+  return overlayProjectEnv(readJsonFile(path.resolve(file), 'config'));
 }
 
 function pickSurface(config, wanted) {
@@ -767,7 +767,30 @@ async function start(o) {
   } catch {
     appKindName = null;
   }
-  const needsPreCaptureAsk = !ci && appKindName && appKindName !== 'local' && !pass.stages.start.preCaptureAck;
+  const preCaptureEnv = preCaptureFromEnv();
+  const needsPreCaptureAsk = !ci && appKindName && appKindName !== 'local' && !pass.stages.start.preCaptureAck && !preCaptureEnv;
+  if (preCaptureEnv && !pass.stages.start.preCaptureAck && !ci && appKindName && appKindName !== 'local') {
+    pass.stages.start.preCaptureAck = {
+      at: new Date().toISOString(),
+      hide: preCaptureEnv.hide === 'find' ? 'find' : preCaptureEnv.hide === 'none' ? 'none' : 'custom',
+      signedIn: preCaptureEnv.signedIn,
+      source: 'env',
+    };
+    writePass(ctx.dir, pass);
+    L.push(`Pre-capture from .env: hide=${pass.stages.start.preCaptureAck.hide} · signedIn=${preCaptureEnv.signedIn}`);
+    const authPrefix = config?.app?.auth?.envPrefix || 'DESIGN_QA_APP';
+    const sessionInEnv = Boolean(process.env[`${authPrefix}_STORAGE_STATE`] || process.env[`${authPrefix}_COOKIE`] || (process.env[`${authPrefix}_USER`] && process.env[`${authPrefix}_PASS`]));
+    if (preCaptureEnv.signedIn && !sessionInEnv) {
+      const designNextEarly = designStep({ ...ctx, configFile, config, surfaceName, pass, agent });
+      return emit(
+        ctx,
+        'start',
+        EXIT.OK,
+        nx(chainCmds(saveSessionCmd(ctx), designNextEarly.cmd), 'DESIGN_QA_SIGNED_IN=true and no saved session is in .env. The next command opens a browser window; the person signs in there. You type nothing.', ...designNextEarly.do),
+        { ready: true, design: pass.design, signedIn: true },
+      );
+    }
+  }
   if (needsPreCaptureAsk) {
     const answersFile = `${ctx.rel}/pre-capture-answers.json`;
     fillPreCaptureAskTail(ctx, pass.locale ?? 'en', answersFile);
@@ -902,6 +925,24 @@ function designStep(ctx) {
     };
   }
   return { what: `Figma ${oneLine(figmaUrl)}`, do: [...ticketDo, tokenDo, ...scopeDo], cmd: rest };
+}
+
+/** DESIGN_QA_HIDE plus DESIGN_QA_SIGNED_IN from the repository-root .env. Null when either is missing or invalid. */
+function preCaptureFromEnv() {
+  const hideRaw = String(process.env.DESIGN_QA_HIDE ?? '').trim();
+  const signedRaw = String(process.env.DESIGN_QA_SIGNED_IN ?? '').trim().toLowerCase();
+  if (!hideRaw || (signedRaw !== 'true' && signedRaw !== 'false')) return null;
+  let hide;
+  if (hideRaw === 'none' || hideRaw === 'find') hide = hideRaw;
+  else {
+    try {
+      hide = JSON.parse(hideRaw);
+    } catch {
+      return null;
+    }
+    if (!isObj(hide)) return null;
+  }
+  return { hide, signedIn: signedRaw === 'true' };
 }
 
 /**

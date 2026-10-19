@@ -105,10 +105,26 @@
 - Node.js 20 或更高。
 - **工作目录** = 被测仓库（跑命令、写报告）；**技能目录** `design-qa` = 工具依赖（`pixelmatch`、`pngjs`、`playwright`），不改被测仓库的 `package.json`。
 - 缺依赖时跑 `ensure-deps.mjs`：已设 `DESIGN_QA_AUTO_INSTALL=1`，或曾同意过（`~/.design-qa/auto-install.json`）则直接安装；否则只问一次，同意后用 `ensure-deps.mjs --grant`。
-- 优先使用被测项目根目录 `.env` / `.env.local`（或终端）中的 `FIGMA_TOKEN`：脚本会自动加载并用 REST `figma-fetch` 拉设计，**有 token 时不要启用 Figma MCP**。仅在没有 token 时才用已登录的 Figma MCP。不要把 token 写进对话或提交进仓库；若已误发，请在 Figma 轮换作废。关闭加载：`DESIGN_QA_LOAD_ENV=0`。
-- 公开/预发环境若有 Cookie 横幅或设计为登录态顶栏，开始捕获前按提示配置隐藏或 `save-session`。
+- 密钥和下面这些选项放在被测项目**根目录**的 `.env` / `.env.local`（或当前终端）。脚本会自动加载。`qa/ui/design-qa.config.json` 里已经写过的值优先。不要把 token 写进对话，也不要提交 `.env`。不要把 `.env` 放在 `qa/ui` 下。若已误发 token，请在 Figma 轮换作废。关闭加载：`DESIGN_QA_LOAD_ENV=0`。
+- 公开/预发地址会询问 Cookie 横幅和是否为登录态，除非 `DESIGN_QA_HIDE` 和 `DESIGN_QA_SIGNED_IN` 都已配置。询问时，答案写入 `pre-capture-answers.json`，再执行 `ack-pre-capture`。
 
 脚本从被测项目的目录运行。`design-qa/SKILL.md` 里的 `node scripts/...` 实际指向本 skill 的 `design-qa/scripts/`。Windows PowerShell 下链式步骤使用 `seq.mjs`，不要改成 `&&`。
+
+## 环境变量
+
+脚本从仓库根目录的 `.env` / `.env.local` 或当前终端读取。变量已配置就直接用，不再询问；没配置才问。`qa/ui/design-qa.config.json` 里已经写过的值优先于 `.env`。
+
+| 变量 | 配置了之后 |
+|---|---|
+| `DESIGN_QA_AUTO_INSTALL=1` | 直接安装 skill 目录里的依赖，不再询问。`0` 表示从不自动安装。未设置时，沿用以前同意过的 `~/.design-qa/auto-install.json`。 |
+| `FIGMA_TOKEN` | 用 REST 拉取设计，不再连接 Figma MCP。 |
+| `JIRA_BASE_URL`、`JIRA_EMAIL`、`JIRA_API_TOKEN` | 三项都有时，不再询问 Jira 凭证。配置里没有站点地址时，`JIRA_BASE_URL` 同时作为站点地址。 |
+| `DESIGN_QA_HIDE` | `none`（不隐藏）、`find`（由检查去找遮挡，不写入配置），或一段 JSON 形式的 preCapture。 |
+| `DESIGN_QA_SIGNED_IN` | `true` 或 `false`。必须和 `DESIGN_QA_HIDE` 同时配置，才会跳过远程页面的 Cookie / 登录态询问。`true` 且没有已保存的登录时，会打开浏览器，由你自己登录。 |
+| `DESIGN_QA_APP_STORAGE_STATE` | 使用这份已保存的登录会话。前缀跟 `app.auth.envPrefix`，默认是 `DESIGN_QA_APP`。 |
+| `DESIGN_QA_APP_COOKIE` | 用这份 cookie 登录。 |
+| `DESIGN_QA_APP_USER`、`DESIGN_QA_APP_PASS`、`DESIGN_QA_APP_AUTH=basic` | HTTP 基本认证。配置里已经写了登录方式时，以配置为准。会话文件不存在或已经过期时，仍会询问。 |
+| `DESIGN_QA_LOAD_ENV=0` | 不加载 `.env` / `.env.local`。 |
 
 ## 一次对照怎么走
 

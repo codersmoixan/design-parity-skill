@@ -94,10 +94,26 @@ If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chro
 - Node.js 20 or newer.
 - **Working directory** = the repository under test (commands and reports). **Skill folder** `design-qa` = tool deps (`pixelmatch`, `pngjs`, `playwright`); the app's `package.json` is not modified.
 - Missing packages: run `ensure-deps.mjs`. With `DESIGN_QA_AUTO_INSTALL=1` or a prior consent file (`~/.design-qa/auto-install.json`), install without asking; otherwise ask once, then `ensure-deps.mjs --grant`.
-- Prefer `FIGMA_TOKEN` in the app repo's `.env` / `.env.local` (or the shell): scripts load it automatically and use REST `figma-fetch` — do not enable Figma MCP when a token is present. Use a signed-in Figma MCP connection only when there is no token. Never paste tokens into chat or commit `.env`. Opt out of env loading: `DESIGN_QA_LOAD_ENV=0`.
-- On public/staging URLs, `start` exits 3 with Ask-the-person questions (cookie banners / signed-in chrome). The agent must ask in chat before the first capture; answers go to `pre-capture-answers.json`, then `ack-pre-capture`.
+- Put secrets and the choices below in the app repo's root `.env` / `.env.local` (or the shell). Scripts load those files automatically. A value already in `qa/ui/design-qa.config.json` wins. Never paste tokens into chat or commit `.env`. Do not put `.env` under `qa/ui`. Opt out of env loading: `DESIGN_QA_LOAD_ENV=0`.
+- On public/staging URLs, `start` asks about cookie banners and signed-in chrome unless `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are both set. When it does ask, answers go to `pre-capture-answers.json`, then `ack-pre-capture`.
 
 Commands run from the repository under test. A `node scripts/...` path in `design-qa/SKILL.md` points at this skill's `design-qa/scripts/` directory. Chained Next commands use `seq.mjs` (not shell `&&`) so PowerShell works.
+
+## Environment variables
+
+Scripts read these from the repository-root `.env` / `.env.local` or the shell. If a variable is set, that value is used and you are not asked again. If it is unset, you are asked. A value already stored in `qa/ui/design-qa.config.json` wins over `.env`.
+
+| Variable | When it is set |
+|---|---|
+| `DESIGN_QA_AUTO_INSTALL=1` | Install skill-folder packages without asking. `0` never auto-installs. Unset: use `~/.design-qa/auto-install.json` from a prior consent. |
+| `FIGMA_TOKEN` | Fetch the design with REST. Do not connect Figma MCP. |
+| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | All three set: do not ask for Jira credentials. `JIRA_BASE_URL` is also the Jira site URL when the config has none. |
+| `DESIGN_QA_HIDE` | `none` (hide nothing), `find` (look for the banner; not saved), or a JSON preCapture object. |
+| `DESIGN_QA_SIGNED_IN` | `true` or `false`. Both this and `DESIGN_QA_HIDE` must be set to skip the remote cookie / signed-in question. `true` without a saved session opens a browser window; you sign in there. |
+| `DESIGN_QA_APP_STORAGE_STATE` | Use this saved session. Prefix follows `app.auth.envPrefix` (default `DESIGN_QA_APP`). |
+| `DESIGN_QA_APP_COOKIE` | Sign in with this cookie. |
+| `DESIGN_QA_APP_USER`, `DESIGN_QA_APP_PASS`, `DESIGN_QA_APP_AUTH=basic` | HTTP basic auth. An auth type already in the config wins. A missing or expired session is still asked. |
+| `DESIGN_QA_LOAD_ENV=0` | Do not load `.env` / `.env.local`. |
 
 ## How one pass runs
 
