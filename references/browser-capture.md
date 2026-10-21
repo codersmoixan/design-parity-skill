@@ -28,14 +28,14 @@ With-data (else the first state) is captured first. After it passed signed in, a
 
 ## Before the first live capture
 
-On a **remote** app URL (preview / staging / prod), `pass.mjs start` exits **3** and prints an **Ask the person** block, unless both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are set in the repository-root `.env` or the shell. When both are set, do not ask: `none` hides nothing, `find` means you still look for the banner, a JSON object is the preCapture, and `DESIGN_QA_SIGNED_IN=true` without a saved session opens `save-session`. When the block is printed, the agent must put it in the **chat reply** (person's language) and must not run `Next:` until they answer (or say to use defaults). Answers go to `<dir>/pre-capture-answers.json`; `Next:` runs `ack-pre-capture` then design fetch / evidence.
+On any **live** app URL (local, preview, staging, or prod), `pass.mjs start` exits **3** and prints an **Ask the person** block, unless both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are set in the repository-root `.env` or the shell. When both are set, do not ask: `none` hides nothing, `find` means you still look for the banner, a JSON object is the preCapture, and `DESIGN_QA_SIGNED_IN=true` without a saved session opens `save-session`. When the block is printed, the agent must put it in the **chat reply** (person's language) and must not run `Next:` until they answer (or say to use defaults). Answers go to `<dir>/pre-capture-answers.json`; `Next:` runs `ack-pre-capture` then design fetch / evidence.
 
 Ask **once** (same round as any open setup questions when possible):
 
-1. Does a cookie/consent banner, promo strip, or chat launcher appear on the app URL but not in the design? If yes → hide (below); answer `hide: "find"` to defer selector choice, or a preCapture object to apply now.
-2. Does the design show a signed-in header (account name, cart badge) while the URL is anonymous? If yes → `signedIn: true` so `ack-pre-capture` chains `setup.mjs save-session` (or treat logged-in as a separate state later).
+1. Does a cookie/consent banner, promo strip, or chat launcher appear on the app URL but not in the design? If yes → hide (below); answer `hide: "find"` to defer selector choice, or a preCapture object to apply now. **Localhost counts** — Cookie drawers over footers are a common false FAIL.
+2. (Remote URLs only in the printed block.) Does the design show a signed-in header (account name, cart badge) while the URL is anonymous? If yes → `signedIn: true` so `ack-pre-capture` chains `setup.mjs save-session` (or treat logged-in as a separate state later).
 
-Do this **before** the first `pass.mjs evidence` on public/staging URLs. A cookie drawer over Best Sellers (or similar) is not a fair pixel/structure compare. Never end a turn waiting on these answers with only tool/log output.
+Do this **before** the first `pass.mjs evidence`. A cookie drawer over Best Sellers or a footer is not a fair pixel/structure compare. Never end a turn waiting on these answers with only tool/log output.
 
 ## Hiding what the design leaves out
 

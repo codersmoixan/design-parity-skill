@@ -4,7 +4,7 @@
 
 Compare an implemented webpage with its design, screen by screen and state by state. The design is the source of truth. Data such as product names, prices, dates, and counts may differ. Components, design tokens, typography, color, spacing, sizing, radii, borders, shadows, icons, layer order, copy, every designed state, and motion must match.
 
-The check uses the bundled [design-qa](design-qa/SKILL.md) procedure based on upstream 0.2.3 (MIT, Copyright (c) 2026 Dimitris Niavis), with local forks/patches in this skill (linked-frame default, optional multi-screen, and related fixes). Its scripts capture pages, diff pixels, audit the design system, and write the report and fix plan. This skill does not reimplement those steps. Local changes do not bump the upstream 0.2.3 version.
+The check uses the design-qa procedure in [SKILL.md](SKILL.md), based on upstream 0.2.3 (MIT, Copyright (c) 2026 Dimitris Niavis), with local forks/patches in this skill (linked-frame default, optional multi-screen, and related fixes). Its scripts capture pages, diff pixels, audit the design system, and write the report and fix plan. This skill does not reimplement those steps. Local changes do not bump the upstream 0.2.3 version.
 
 ## What it does
 
@@ -92,12 +92,12 @@ If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chro
 ## Before the first run
 
 - Node.js 20 or newer.
-- **Working directory** = the repository under test (commands and reports). **Skill folder** `design-qa` = tool deps (`pixelmatch`, `pngjs`, `playwright`); the app's `package.json` is not modified.
+- **Working directory** = the repository under test (commands and reports). **This skill folder** = tool deps (`pixelmatch`, `pngjs`, `playwright`); the app's `package.json` is not modified.
 - Missing packages: run `ensure-deps.mjs`. With `DESIGN_QA_AUTO_INSTALL=1` or a prior consent file (`~/.design-qa/auto-install.json`), install without asking; otherwise ask once, then `ensure-deps.mjs --grant`.
 - Put secrets and the choices below in the app repo's root `.env` / `.env.local` (or the shell). Scripts load those files automatically. A value already in `qa/ui/design-qa.config.json` wins. Never paste tokens into chat or commit `.env`. Do not put `.env` under `qa/ui`. Opt out of env loading: `DESIGN_QA_LOAD_ENV=0`.
-- On public/staging URLs, `start` asks about cookie banners and signed-in chrome unless `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are both set. When it does ask, answers go to `pre-capture-answers.json`, then `ack-pre-capture`.
+- On local and remote URLs, `start` asks about cookie/consent chrome (remote also asks signed-in) unless `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are both set. When it does ask, answers go to `pre-capture-answers.json`, then `ack-pre-capture`.
 
-Commands run from the repository under test. A `node scripts/...` path in `design-qa/SKILL.md` points at this skill's `design-qa/scripts/` directory. Chained Next commands use `seq.mjs` (not shell `&&`) so PowerShell works.
+Commands run from the repository under test. A `node scripts/...` path in `SKILL.md` points at this skill's `scripts/` directory. Chained Next commands use `seq.mjs` (not shell `&&`) so PowerShell works.
 
 ## Environment variables
 
@@ -150,13 +150,12 @@ Start
 
 ```text
 ui-quality-testing/
-├── SKILL.md                 Instructions for the agent
+├── SKILL.md                 Instructions for the agent (merged UI QA + design-qa procedure)
 ├── README.md                This file
 ├── README.zh-CN.md          Chinese
-└── design-qa/               Bundled design-qa (upstream 0.2.3 + local patches)
-    ├── SKILL.md             Commands and exit codes
-    ├── scripts/             Capture, diff, report, review
-    ├── references/          Detail read only when a stage needs it
-    ├── schemas/             Report and config shapes
-    └── templates/           HTML report template
+├── scripts/                 Capture, diff, report, review (upstream 0.2.3 + local patches)
+├── references/              Detail read only when a stage needs it
+├── schemas/                 Report and config shapes
+├── templates/               HTML report template
+└── package.json             Skill-folder deps (pixelmatch, pngjs, playwright)
 ```

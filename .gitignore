@@ -1,5 +1,5 @@
-# Skill npm deps (install via design-qa/ensure-deps.mjs)
-design-qa/node_modules/
+# Skill npm deps (install via scripts/ensure-deps.mjs)
+node_modules/
 
 # OS / editor
 .DS_Store

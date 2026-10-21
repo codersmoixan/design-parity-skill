@@ -55,7 +55,13 @@ Run `commands.test` from `commands.cwd`, then each `commands.lint`. Investigate 
 ## 4. Re-verify
 
 1. Run the `Next:` command: `pass.mjs evidence … --recapture` captures the app again and rewrites the worklist; a fixed difference disappears. A local target recaptures on its own after a code change; a remote target, hot reload, or a checkout the summary says it cannot read needs `--recapture`. Gitignored build output is never seen: rebuild it first.
-2. Update `findings.json`. A verified fix keeps its `ledger`, `state`, element and `property` (so it keeps its id), gets `"severity": "PASS"`, and loses `fix` and any worklist or audit key that no longer exists. An annotation's entry keeps its `"annotation"` key: `"severity": "PASS"` is the only severity you may write on it. A fix that did not hold stays as it was. New items are filed or rejected as usual.
+2. Update `findings.json` **surgically** — do not rebuild the whole file from scratch:
+   - A verified fix keeps its `ref`, `ledger`, `state`, element and `property` (so it keeps its id), gets `"severity": "PASS"`, and loses `fix` and any worklist or audit key that no longer exists.
+   - An annotation's entry keeps its `"annotation"` key: `"severity": "PASS"` is the only severity you may write on it.
+   - A fix that did not hold stays as it was.
+   - **Never** change `expected` / `actual` / `title` / `ref` / pin of findings the person dismissed or put in debt — rewording them drops the dismissal/triage.
+   - Refresh `comparisons.<state>` with the new digest and image list from `comparison-review.md`.
+   - New worklist / audit / compare rows only: file or reject those; leave every other finding untouched.
 3. Add the iteration to `fixLoop`, then run `pass.mjs report`:
 
 ```json

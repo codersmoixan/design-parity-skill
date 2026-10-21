@@ -2,12 +2,12 @@
 
 把已实现的网页和设计稿逐屏、逐状态对照。**设计稿是标准**；商品名、价格、日期等数据可以不同，组件、token、字体、颜色、间距、尺寸、圆角、边框、阴影、图标、图层顺序、文案、设计状态与动效必须一致。
 
-机械步骤由内置 [design-qa](design-qa/SKILL.md) 脚本完成；代理只在 `findings.json` 里做判断。命令在**被测仓库**运行；工具依赖装在本 skill 的 `design-qa/` 目录。
+机械步骤由本 skill [SKILL.md](SKILL.md) 中的脚本完成；代理只在 `findings.json` 里做判断。命令在**被测仓库**运行；工具依赖装在本 skill 目录。
 
 每一步结束会打印 `Do:` 与 `Next:`：**先做完 `Do:`，再原样执行 `Next:`**，不跳步、不改路径。迷路时：
 
 ```bash
-node <skill>/design-qa/scripts/pass.mjs status --dir <dir> --run <id>
+node <skill>/scripts/pass.mjs status --dir <dir> --run <id>
 ```
 
 ---
@@ -145,4 +145,4 @@ node <skill>/design-qa/scripts/pass.mjs status --dir <dir> --run <id>
 - **密钥**：写在被测项目 `.env` / `.env.local` 或终端；脚本自动加载且不覆盖已有环境变量；关闭加载用 `DESIGN_QA_LOAD_ENV=0`。
 - **Windows**：链式 `Next:` 使用 `seq.mjs`，不要改成 `&&`。
 
-更细的命令、退出码与失败处理见 [design-qa/SKILL.md](design-qa/SKILL.md)；调用示例见 [README.zh-CN.md](README.zh-CN.md)。
+更细的命令、退出码与失败处理见 [SKILL.md](SKILL.md)；调用示例见 [README.zh-CN.md](README.zh-CN.md)。

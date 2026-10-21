@@ -3125,18 +3125,24 @@ class BuildContext {
 
   mergePrevious(report) {
     const prev = this.previous;
-    // Dismissals and sign-offs a person recorded on the same finding, values unchanged.
+    // Dismissals and sign-offs a person recorded on the same finding (same fingerprint /
+    // place). Free-text expected/actual rewording after a fix-loop must not reopen them —
+    // only a different ledger|state|element|property (fingerprint) drops the dismissal.
     for (const f of report.findings) {
       const old = this.prevById.get(f.id);
       if (!old || !isOpen(f)) continue;
-      const same = (old.expected?.value ?? null) === (f.expected?.value ?? null) && (old.actual?.value ?? null) === (f.actual?.value ?? null);
+      const sameValues = (old.expected?.value ?? null) === (f.expected?.value ?? null) && (old.actual?.value ?? null) === (f.actual?.value ?? null);
+      const samePlace = fingerprint(old) === fingerprint(f);
       // A sign-off that is the one findings.json gives (an earlier build did not mark it) is the agent's, not a person's.
       const fromFile = isObj(old.signoff) && isObj(f.signoff) && ['by', 'date', 'reason'].every((k) => String(old.signoff[k]) === String(f.signoff[k]));
       const person = (old.resolution === 'DISMISSED' && isObj(old.dismissal)) || (old.resolution === 'INTENTIONAL' && isObj(old.signoff) && old.signoff.enteredBy !== 'agent' && !fromFile && !str(old.knownDrift));
       if (!person) continue;
-      if (!same) {
-        this.notes.push(`${f.id} was ${old.resolution === 'DISMISSED' ? 'dismissed' : 'accepted as intentional'} in this run, but its values changed (expected ${show(old.expected?.value)} → ${show(f.expected?.value)}, actual ${show(old.actual?.value)} → ${show(f.actual?.value)}): it stays open`);
+      if (!samePlace) {
+        this.notes.push(`${f.id} was ${old.resolution === 'DISMISSED' ? 'dismissed' : 'accepted as intentional'} in this run, but its place fingerprint changed: it stays open`);
         continue;
+      }
+      if (!sameValues) {
+        this.notes.push(`${f.id} dismissal/sign-off carried despite expected/actual prose drift (place fingerprint unchanged)`);
       }
       if (old.resolution === 'DISMISSED') {
         f.resolution = 'DISMISSED';

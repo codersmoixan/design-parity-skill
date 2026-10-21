@@ -4,7 +4,7 @@
 
 把已经实现的网页和设计稿逐屏、逐状态对照。设计稿是标准。商品名、价格、日期、数量这类数据可以不同。组件、设计 token、字体、颜色、间距、尺寸、圆角、边框、阴影、图标、图层顺序、文案、设计稿里的每个状态，以及动效必须一致。
 
-核对流程使用内置的 [design-qa](design-qa/SKILL.md)，基于上游 0.2.3（MIT，Copyright (c) 2026 Dimitris Niavis），并在本 skill 内做了本地分叉/优化（单帧默认、多屏可选等）。截图、像素对比、设计系统审计、报告和修复清单都由它的脚本完成，不另写一套。本地改动不升级上游版本号。
+核对流程见 [SKILL.md](SKILL.md)（已合并原 design-qa 步骤），基于上游 0.2.3（MIT，Copyright (c) 2026 Dimitris Niavis），并在本 skill 内做了本地分叉/优化（单帧默认、多屏可选等）。截图、像素对比、设计系统审计、报告和修复清单都由本目录 `scripts/` 完成，不另写一套。本地改动不升级上游版本号。
 
 ## 功能
 
@@ -103,12 +103,12 @@
 ## 调用前
 
 - Node.js 20 或更高。
-- **工作目录** = 被测仓库（跑命令、写报告）；**技能目录** `design-qa` = 工具依赖（`pixelmatch`、`pngjs`、`playwright`），不改被测仓库的 `package.json`。
+- **工作目录** = 被测仓库（跑命令、写报告）；**本 skill 目录** = 工具依赖（`pixelmatch`、`pngjs`、`playwright`），不改被测仓库的 `package.json`。
 - 缺依赖时跑 `ensure-deps.mjs`：已设 `DESIGN_QA_AUTO_INSTALL=1`，或曾同意过（`~/.design-qa/auto-install.json`）则直接安装；否则只问一次，同意后用 `ensure-deps.mjs --grant`。
 - 密钥和下面这些选项放在被测项目**根目录**的 `.env` / `.env.local`（或当前终端）。脚本会自动加载。`qa/ui/design-qa.config.json` 里已经写过的值优先。不要把 token 写进对话，也不要提交 `.env`。不要把 `.env` 放在 `qa/ui` 下。若已误发 token，请在 Figma 轮换作废。关闭加载：`DESIGN_QA_LOAD_ENV=0`。
-- 公开/预发地址会询问 Cookie 横幅和是否为登录态，除非 `DESIGN_QA_HIDE` 和 `DESIGN_QA_SIGNED_IN` 都已配置。询问时，答案写入 `pre-capture-answers.json`，再执行 `ack-pre-capture`。
+- 本地与远程地址都会询问 Cookie/遮挡条（远程还会问是否登录态），除非 `DESIGN_QA_HIDE` 和 `DESIGN_QA_SIGNED_IN` 都已配置。询问时，答案写入 `pre-capture-answers.json`，再执行 `ack-pre-capture`。
 
-脚本从被测项目的目录运行。`design-qa/SKILL.md` 里的 `node scripts/...` 实际指向本 skill 的 `design-qa/scripts/`。Windows PowerShell 下链式步骤使用 `seq.mjs`，不要改成 `&&`。
+脚本从被测项目的目录运行。`SKILL.md` 里的 `node scripts/...` 实际指向本 skill 的 `scripts/`。Windows PowerShell 下链式步骤使用 `seq.mjs`，不要改成 `&&`。
 
 ## 环境变量
 
@@ -161,13 +161,12 @@
 
 ```text
 ui-quality-testing/
-├── SKILL.md                 给代理的执行说明
+├── SKILL.md                 给代理的执行说明（已合并原 design-qa 步骤）
 ├── README.md                英文说明
 ├── README.zh-CN.md          本说明
-└── design-qa/               内置 design-qa（上游 0.2.3 + 本地优化）
-    ├── SKILL.md             逐步命令和退出码
-    ├── scripts/             截图、对比、报告、复核
-    ├── references/          某一阶段失败时才需要读的细则
-    ├── schemas/             报告和配置的结构
-    └── templates/           HTML 报告模板
+├── scripts/                 截图、对比、报告、复核（上游 0.2.3 + 本地优化）
+├── references/              某一阶段失败时才需要读的细则
+├── schemas/                 报告和配置的结构
+├── templates/               HTML 报告模板
+└── package.json             skill 目录依赖（pixelmatch、pngjs、playwright）
 ```

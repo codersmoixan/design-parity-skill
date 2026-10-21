@@ -134,6 +134,8 @@ State labels are matched on the whole name or one segment (split on `–`, `/`, 
 node scripts/frame-map-from-census.mjs --dir <dir> --ignore-unmapped --run <id>
 ```
 
+`--ignore-unmapped` also removes stale `evidence/figma/<provisional-state>.png` files and orphan `pass.states` rows for those provisional states. Then re-run `figma-fetch` with `--frame-map` (or the printed Next) so the ignored siblings are not designed states. Evidence prunes any remaining `pass.states` ids that are no longer in the matrix.
+
 Only use `--accept-provisional` after confirming provisional screen/state names with the person or the design.
 
 ## Several screens

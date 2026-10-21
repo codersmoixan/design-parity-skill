@@ -305,6 +305,7 @@ export function logEntryFor(report, finding, { source = null } = {}) {
     feature: report?.meta?.feature ?? null,
     slug: reportSlug(report),
     findingId: finding?.id ?? null,
+    ref: finding?.ref ?? null,
     title: finding?.title ?? null,
     fingerprint: fingerprint(finding),
     ledger: finding?.ledger ?? null,
@@ -382,10 +383,12 @@ function sameFinding(e, f) {
 
 /**
  * Re-apply earlier passes' dismissals: every active entry of this report's feature
- * whose fingerprint matches an open finding (FIX_CODE / UNCLASSIFIED) and whose
- * expectedValue / actualValue still equal the finding's expected.value / actual.value
- * dismisses it again (source "prior-pass", priorRef = entry id; kind, reason and by
- * from the entry). Matches whose values changed stay open and are listed in `changed`.
+ * whose fingerprint matches an open finding (FIX_CODE / UNCLASSIFIED) dismisses it
+ * again (source "prior-pass", priorRef = entry id; kind, reason and by from the entry).
+ * Free-text expected/actual drift no longer blocks re-apply when the place fingerprint
+ * and title still match (agent rewording after a fix-loop). A fingerprint match with a
+ * different title stays open and is listed in `changed`. Also tries `ref` when the log
+ * entry recorded one.
  * Returns { report, applied: [{ findingId, entryId, kind }], changed: [{ findingId,
  * entryId, kind, was: { expectedValue, actualValue }, now: { expectedValue, actualValue } }] }.
  */
@@ -395,17 +398,29 @@ export function applyPriorDismissals(report, log) {
     (e) => e && e.status === 'active' && String(e.feature ?? '').trim().toLowerCase() === feature,
   );
   const byFp = new Map();
-  for (const e of active) byFp.set(e.fingerprint, [...(byFp.get(e.fingerprint) ?? []), e]);
+  const byRef = new Map();
+  for (const e of active) {
+    byFp.set(e.fingerprint, [...(byFp.get(e.fingerprint) ?? []), e]);
+    const ref = String(e.ref ?? '').trim();
+    if (ref) byRef.set(ref, [...(byRef.get(ref) ?? []), e]);
+  }
   let next = report;
   const applied = [];
   const changed = [];
   for (const f of Array.isArray(report?.findings) ? report.findings : []) {
     if (!f || !OPEN_RESOLUTIONS.includes(f.resolution) || !DISMISSIBLE_SEVERITIES.includes(f.severity)) continue;
-    const e = (byFp.get(fingerprint(f)) ?? []).find((x) => sameFinding(x, f));
+    const ref = String(f.ref ?? '').trim();
+    const e =
+      (byFp.get(fingerprint(f)) ?? []).find((x) => sameFinding(x, f)) ??
+      (ref ? (byRef.get(ref) ?? []).find((x) => sameFinding(x, f) || norm(x.title) === norm(f.title)) : null);
     if (!e) continue;
     const nowValues = { expectedValue: f.expected?.value ?? null, actualValue: f.actual?.value ?? null };
     const wasValues = { expectedValue: e.expectedValue ?? null, actualValue: e.actualValue ?? null };
-    if (nowValues.expectedValue !== wasValues.expectedValue || nowValues.actualValue !== wasValues.actualValue) {
+    const valuesDrift =
+      nowValues.expectedValue !== wasValues.expectedValue || nowValues.actualValue !== wasValues.actualValue;
+    // Same place + same title → carry even if prose drifted. Different title on same
+    // fingerprint → likely a different issue; leave open.
+    if (valuesDrift && norm(e.title) && norm(e.title) !== norm(f.title)) {
       changed.push({ findingId: f.id, entryId: e.id, kind: e.kind, was: wasValues, now: nowValues });
       continue;
     }

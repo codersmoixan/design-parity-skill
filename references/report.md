@@ -39,7 +39,7 @@ The build refuses to write while anything below holds, and names the place in `f
 
 On a deployed target every open finding needs app-side evidence (a pin gives it); local source is a hint only.
 
-**Rebuilding.** Rebuild after every change to `findings.json` or the evidence. A finding keeps its id while its identity stays the same (`ledger | state | selector`, else Figma layer path, else region `| property`); give two findings with the same identity distinct `ref`s. The build keeps the triage, ticket keys, fix-loop entries, backfill and the dismissals and sign-offs of findings whose values did not change, and re-applies the dismissed log. What no longer fits is printed under "Dropped".
+**Rebuilding.** Rebuild after every change to `findings.json` or the evidence. A finding keeps its id while its identity stays the same (`ledger | state | selector`, else Figma layer path, else region `| property`); give two findings with the same identity distinct `ref`s. The build keeps the triage, ticket keys, fix-loop entries, backfill and the dismissals and sign-offs of findings whose **place fingerprint** is unchanged (free-text expected/actual drift alone does not reopen a person's dismissal), and re-applies the dismissed log (also by `ref` when logged). What no longer fits is printed under "Dropped".
 
 **Defaults the build fills**: ids, ranks, `screen`, `resolution` (`FIX_CODE` for an open severity, `INTENTIONAL` when `knownDrift` is cited, `NONE` for `PASS` and `CANNOT_VERIFY`), `element` (from the pin), `expected.source` (`figma` or `prototype`), `fix.files` (the source file), `fix.effort` (3), and one evidence data file per finding. Never write ids, ranks, crops, `meta`, the scorecard or the state matrix.
 
@@ -115,4 +115,4 @@ node scripts/render-report.mjs --in <dir>/report.json --out <dir>/report.html --
 # then restart review if a review server is open
 ```
 
-Paths above are under this skill’s `design-qa/` folder; run from the repository under test with the full skill path as `pass.mjs` prints.
+Paths above are under this skill’s folder; run from the repository under test with the full skill path as `pass.mjs` prints.

@@ -758,8 +758,9 @@ async function start(o) {
     const weaker = [ds.includes('ds-tokens') ? 'style values come only from the CSS variables on the page' : null, ds.includes('ds-components') ? 'the component check is off' : null].filter(Boolean).join(' and ');
     optional.push(`${ds.length ? 'Before evidence' : 'Optional, once'}: ask the person the ${plural(questions.length, 'question').replace(/^1 /, '')} above and write the answers, as shown after the arrows, merged into one object, to ${answers}, then run ${scriptCmd('setup.mjs', 'apply', '--answers', answers, '--no-next')} (${ds.length ? `skipped, the design-system check is weaker: ${weaker}` : 'skip it and nothing changes'}).`);
   }
-  // Remote public/staging/prod URLs: exit 3 with Ask-the-person questions so the agent must
-  // surface them in chat before the first live capture (ci never asks).
+  // Live app captures (local, preview, staging, prod): exit 3 with Ask-the-person questions so
+  // the agent must surface cookie/chrome hide (and signed-in on remote) before the first capture
+  // (ci never asks). Localhost Cookie drawers otherwise cover footers and inflate diffs.
   const appTarget = passUrl({ ...ctx, pass }) ?? config?.app?.baseUrl ?? null;
   let appKindName = null;
   try {
@@ -768,8 +769,8 @@ async function start(o) {
     appKindName = null;
   }
   const preCaptureEnv = preCaptureFromEnv();
-  const needsPreCaptureAsk = !ci && appKindName && appKindName !== 'local' && !pass.stages.start.preCaptureAck && !preCaptureEnv;
-  if (preCaptureEnv && !pass.stages.start.preCaptureAck && !ci && appKindName && appKindName !== 'local') {
+  const needsPreCaptureAsk = !ci && Boolean(appKindName) && !pass.stages.start.preCaptureAck && !preCaptureEnv;
+  if (preCaptureEnv && !pass.stages.start.preCaptureAck && !ci && appKindName) {
     pass.stages.start.preCaptureAck = {
       at: new Date().toISOString(),
       hide: preCaptureEnv.hide === 'find' ? 'find' : preCaptureEnv.hide === 'none' ? 'none' : 'custom',
@@ -793,7 +794,7 @@ async function start(o) {
   }
   if (needsPreCaptureAsk) {
     const answersFile = `${ctx.rel}/pre-capture-answers.json`;
-    fillPreCaptureAskTail(ctx, pass.locale ?? 'en', answersFile);
+    fillPreCaptureAskTail(ctx, pass.locale ?? 'en', answersFile, { local: appKindName === 'local' });
     const ackCmd = scriptCmd('pass.mjs', 'ack-pre-capture', '--dir', ctx.rel, '--run', ctx.runId, '--from', answersFile);
     return emit(
       ctx,
@@ -949,27 +950,38 @@ function preCaptureFromEnv() {
  * Print the pre-capture Ask-the-person block into ctx.tail (never line-capped). Locale zh →
  * Chinese questions; otherwise English. answersFile is the path the agent writes after the reply.
  */
-function fillPreCaptureAskTail(ctx, locale, answersFile) {
+function fillPreCaptureAskTail(ctx, locale, answersFile, { local = false } = {}) {
   const zh = normalizeLocale(locale) === 'zh';
   const T = (ctx.tail = []);
+  // Localhost usually already has a saved session; still ask about Cookie/chrome that the design omits.
   if (zh) {
     T.push('Ask the person（须在对话中提问，收到回复前不要跑 Next）:');
-    T.push('1) 线上页面是否有设计稿没有的 Cookie/同意条、促销条或聊天按钮？');
+    T.push(`1) ${local ? '本地' : '线上'}页面是否有设计稿没有的 Cookie/同意条、促销条或聊天按钮？`);
     T.push(`  a) 没有 / 跳过 → ${JSON.stringify({ hide: 'none', signedIn: false })}`);
     T.push(`  b) 有，抓图时要藏 → ${JSON.stringify({ hide: 'find', signedIn: false })}`);
-    T.push('2) 设计稿是否展示已登录顶栏（账号名、购物车角标等），而当前 URL 是未登录？');
-    T.push('  a) 否 → 保持 signedIn: false');
-    T.push('  b) 是 → 把 signedIn 改为 true（Next 会打开浏览器，由你自行登录）');
-    T.push(`回复示例: 1a, 2a  或把合并后的 JSON 写入 ${answersFile}`);
+    if (!local) {
+      T.push('2) 设计稿是否展示已登录顶栏（账号名、购物车角标等），而当前 URL 是未登录？');
+      T.push('  a) 否 → 保持 signedIn: false');
+      T.push('  b) 是 → 把 signedIn 改为 true（Next 会打开浏览器，由你自行登录）');
+      T.push(`回复示例: 1a, 2a  或把合并后的 JSON 写入 ${answersFile}`);
+    } else {
+      T.push('（本地地址默认 signedIn: false；若已有 storageState 登录会话可保持。）');
+      T.push(`回复示例: 1a 或 1b  或把 JSON 写入 ${answersFile}`);
+    }
   } else {
     T.push('Ask the person (required — reply in chat before Next):');
-    T.push('1) Does a cookie/consent banner, promo strip, or chat launcher appear on the app URL but not in the design?');
+    T.push(`1) Does a cookie/consent banner, promo strip, or chat launcher appear on the ${local ? 'local' : 'app'} URL but not in the design?`);
     T.push(`  a) No / skip → ${JSON.stringify({ hide: 'none', signedIn: false })}`);
     T.push(`  b) Yes, hide them for capture → ${JSON.stringify({ hide: 'find', signedIn: false })}`);
-    T.push('2) Does the design show a signed-in header (account name, cart badge) while this URL is anonymous?');
-    T.push('  a) No → keep signedIn: false');
-    T.push('  b) Yes → set signedIn: true (Next opens a browser; they sign in themselves)');
-    T.push(`Reply like: 1a, 2a  or write the merged JSON to ${answersFile}`);
+    if (!local) {
+      T.push('2) Does the design show a signed-in header (account name, cart badge) while this URL is anonymous?');
+      T.push('  a) No → keep signedIn: false');
+      T.push('  b) Yes → set signedIn: true (Next opens a browser; they sign in themselves)');
+      T.push(`Reply like: 1a, 2a  or write the merged JSON to ${answersFile}`);
+    } else {
+      T.push('(Local URLs default signedIn: false; keep that when a storageState session is already saved.)');
+      T.push(`Reply like: 1a or 1b  or write the JSON to ${answersFile}`);
+    }
   }
 }
 
@@ -1301,6 +1313,12 @@ async function evidence(o, { dryRun = false } = {}) {
   const expanded = plan.multi ? expandedConfigStates(surface) : [];
   if (expanded.length) L.push(`Config states ${expanded.map((k) => `"${oneLine(k)}"`).join(', ')} apply to all ${plural(plan.screens.length, 'screen')} (surface-level keys); key one "<screen>/<state>" for one screen.`);
   const cfgHash = configCaptureHash(ctx);
+  // Drop pass.states that are no longer designed (e.g. a sibling frame ignored in
+  // frame-map after --ignore-unmapped). Leaving them caused PARTIAL "no-driver" loops.
+  const plannedIds = new Set(plan.screens.flatMap((screen) => screen.states.map((st) => st.id)));
+  for (const id of Object.keys(pass.states ?? {})) {
+    if (!plannedIds.has(id)) delete pass.states[id];
+  }
   for (const screen of plan.screens) {
     for (const st of screen.states) {
       const prev = pass.states[st.id] ?? {};
@@ -1972,7 +1990,7 @@ async function report(o) {
     return emit(ctx, 'report', EXIT.OK, passCmd(ctx, 'status'), { valid: true, verdict: sc.verdict ?? null });
   }
   if (!o.review) {
-    L.push(`The review is long-running: start the next command in the background (it waits for the person to click Send); when it exits, run ${passCmd(ctx, 'status')} for the step after it.`);
+    L.push(`The review is long-running: start the next command in the background (it waits for the person to click Send). When it exits 0 with decisions, run its Next (apply-decisions) immediately in the same turn — do not pause for "continue".`);
     L.push(`If the person will not review now: ${passCmd(ctx, 'finish')} (records the review as skipped; the recommended split stands; it can be opened later)`);
     return emit(ctx, 'report', EXIT.OK, passCmd(ctx, 'review'), { valid: true, verdict: sc.verdict ?? null });
   }
@@ -2015,7 +2033,10 @@ async function runReview(ctx, o) {
   const prev = pass.stages.review ?? {};
   pass.stages.review = { at: new Date().toISOString(), outcome, exitCode: r.code, opened: (prev.opened ?? 0) + 1 };
   writePass(dir, pass);
-  if (r.code === 0) return emit(ctx, 'review', EXIT.OK, scriptCmd('apply-decisions.mjs', '--report', `${ctx.rel}/report.json`, '--run', ctx.runId));
+  if (r.code === 0) {
+    ctx.lines.push('Do: Decisions were sent. Run Next immediately in this same turn (apply-decisions → render → fix-loop). Do not wait for the person to say "continue"; a system notice that the review process ended is not a stop.');
+    return emit(ctx, 'review', EXIT.OK, scriptCmd('apply-decisions.mjs', '--report', `${ctx.rel}/report.json`, '--run', ctx.runId));
+  }
   if (outcome === 'closed') return reviewClosed(ctx, EXIT.INPUT);
   if (r.code === 5) return emit(ctx, 'review', EXIT.CONFLICT, nx(scriptCmd('review.mjs', '--status', '--report', `${ctx.rel}/report.json`), 'A review server is already open for this folder: give the person its link again (the status command says whether it still answers).'));
   return emit(ctx, 'review', EXIT.FAILED, nx(passCmd(ctx, 'review'), `See ${r.log ?? 'the review log'}.`));

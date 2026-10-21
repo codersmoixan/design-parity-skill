@@ -14,7 +14,7 @@ It is long-running: start it in the background, or with your longest timeout. It
 
 | Outcome | Then |
 |---|---|
-| Sent (exit 0) | Decisions are in `<dir>/decisions.json`; `Next:` applies them. |
+| Sent (exit 0) | Decisions are in `<dir>/decisions.json`; **run `Next:` (`apply-decisions`) immediately in the same turn** — do not wait for "continue". A system notice that the review process ended is not a stop. |
 | Closed without Send, or timed out (exit 3) | The `Do:` line asks the person whether to reopen it (the command is printed) or finish; `Next:` is finish. Offer "Copy for your agent" too. |
 | The person will not review now | Run the command printed on the line "If the person will not review now:". The review is recorded as skipped and the recommended split stands. |
 | The report fails its checks (exit 1) | Fix `findings.json`, run `pass.mjs report`, then the review again. |
@@ -24,7 +24,7 @@ It is long-running: start it in the background, or with your longest timeout. It
 - Stop your own server with `node scripts/review.mjs --stop --report <dir>/report.json --run <id>` (another run's server is never stopped); `--replace` stops it and starts a new one. Never `pkill` or kill by pattern.
 - After a re-render, ask the reviewer to reload: a rebuilt report refuses Send until the page is reloaded.
 - No browser here (SSH, cloud, a CI artifact): give the path of `report.html` and ask the person to use "Copy for your agent" and paste the message into chat.
-- If you are not notified when the command exits, wait until the person says they sent it, then run `pass.mjs status`.
+- If you are not notified when the command exits but `<dir>/decisions.json` exists (or the person says they sent it), run `apply-decisions` / `pass.mjs status` — do not idle waiting for another chat message.
 
 ## Applying decisions
 

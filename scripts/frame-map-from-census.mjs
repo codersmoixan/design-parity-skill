@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build <dir>/frame-map.json from design-census.json: accept provisional mappings, or ignore
 // every unmapped frame (single-page / linked-frame passes).
-import { existsSync } from 'node:fs';
+import { existsSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { CliError, displayPath, oneLine, parseCli, readJsonFile, runMain, usageError, writeJson } from './lib/args.mjs';
 import { assertRunOwnsOutput } from './lib/pass.mjs';
@@ -98,6 +98,52 @@ async function main(argv) {
   const merged = { ...existing, ...map };
   writeJson(out, merged);
   console.log(`Wrote ${Object.keys(map).length} frame-map entries to ${oneLine(displayPath(out))} (${ignore ? 'ignore-unmapped' : 'accept-provisional'}).`);
+
+  // --ignore-unmapped: drop stale design PNGs for ignored provisional states so evidence
+  // does not keep treating them as designed (pass.states orphans are pruned on next evidence).
+  let removedPngs = 0;
+  if (ignore) {
+    const figmaDir = path.join(dir, 'evidence', 'figma');
+    for (const u of unmapped) {
+      const provisional = u.suggestion?.state || u.mappedTo?.state;
+      if (!provisional || provisional === 'with-data') continue;
+      const png = path.join(figmaDir, `${provisional}.png`);
+      if (existsSync(png)) {
+        try {
+          unlinkSync(png);
+          removedPngs += 1;
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    // Also clear sticky no-driver rows from pass.json for ignored provisional states.
+    const passFile = path.join(dir, 'pass.json');
+    if (existsSync(passFile)) {
+      try {
+        const pass = readJsonFile(passFile, 'pass');
+        let pruned = 0;
+        if (pass?.states && typeof pass.states === 'object') {
+          for (const u of unmapped) {
+            const provisional = u.suggestion?.state || u.mappedTo?.state;
+            if (!provisional || provisional === 'with-data') continue;
+            if (pass.states[provisional]) {
+              delete pass.states[provisional];
+              pruned += 1;
+            }
+          }
+          if (pruned) {
+            writeJson(passFile, pass);
+            console.log(`Pruned ${pruned} orphan state(s) from pass.json after ignore-unmapped.`);
+          }
+        }
+      } catch {
+        /* leave pass.json alone */
+      }
+    }
+    if (removedPngs) console.log(`Removed ${removedPngs} stale evidence/figma/*.png for ignored frames.`);
+  }
+
   console.log(`Next: re-run pass.mjs evidence (or figma-fetch with --frame-map, then evidence).`);
   return 0;
 }
