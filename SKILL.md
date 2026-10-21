@@ -19,7 +19,9 @@ Compare a built page with its design. The design is the source of truth. Data va
 
 ## Bundled procedure
 
-Design parity is the bundled [design-qa](design-qa/SKILL.md) skill, based on upstream 0.2.3 (MIT, Copyright (c) 2026 Dimitris Niavis, https://github.com/NiavisDimitris/skills), with local forks/patches in this skill (single-frame default, Windows seq, frame-map batch, pre-capture prompts). Do not reimplement capture, diff, audit, findings, the HTML report, review, or backfill. Do not bump the upstream version number for local changes.
+Design parity is the bundled [design-qa](design-qa/SKILL.md) skill, based on upstream 0.2.3 (MIT, Copyright (c) 2026 Dimitris Niavis, https://github.com/NiavisDimitris/skills), with local forks/patches in this skill (single-frame default, Windows seq, frame-map batch, pre-capture prompts, **report.html pin/crop coordinate invariants**). Do not reimplement capture, diff, audit, findings, the HTML report, review, or backfill. Do not bump the upstream version number for local changes.
+
+**Report UI coordinates (local):** Capture pin numbers, Evidence thumbnail marks, and the lightbox enlarge box must share one evidence crop. Never shove pins far off the crop to avoid overlap; never position the lightbox crop as `%` of `.dialog-body`. Full rules: [design-qa/references/report.md](design-qa/references/report.md) § “Interactive report.html”. If the person says thumbs are right but enlarge is wrong, fix lightbox placement there and re-render — do not “fix” by inventing a second crop.
 
 1. Read [design-qa/SKILL.md](design-qa/SKILL.md) and follow it from Start through Finish. Its `Do:` and `Next:` lines override this file.
 2. Resolve paths from the `design-qa` directory next to this file, not from the app repository. When that file says `node scripts/<name>.mjs` or `references/<name>.md`, use `design-qa/scripts/<name>.mjs` and `design-qa/references/<name>.md`. Run the commands from the repository under test. Copy every printed `Next:` command exactly (chained steps use `seq.mjs`, not shell `&&`).

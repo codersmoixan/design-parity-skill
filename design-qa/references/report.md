@@ -1,4 +1,4 @@
-Read when: `pass.mjs report` (or `build-report.mjs`, `validate.mjs`) lists a problem its message does not settle, or you need to explain the verdict, the match or a `findings.json` key.
+Read when: `pass.mjs report` (or `build-report.mjs`, `validate.mjs`) lists a problem its message does not settle; you need to explain the verdict, the match or a `findings.json` key; **or you edit `templates/report.html`** (pins, evidence thumbs, lightbox crop boxes).
 
 # The report
 
@@ -80,3 +80,39 @@ Rankable: `FIX_CODE` with severity `BLOCKER`, `WARNING` or `DS_CANDIDATE`. `scor
 ### Design-system counts
 
 `tokens` = open style findings whose `expected.token` is set and differs from `actual.token` (null: hardcoded). `components` = open component findings. `motion` = open motion findings. When the audit was skipped, or no component library is configured, that count is "not checked" (`meta.notChecked` says why), not zero: say so in the reply.
+
+## Interactive `report.html` — pin and crop coordinates (local invariants)
+
+These rules are **local forks** of the report UI. Do not reintroduce the old behaviours when editing `templates/report.html`. After any change to that template, re-run `render-report.mjs` (with the pass `--run`) and smoke-check: capture pins, Evidence thumbs, then click a thumb to open the lightbox.
+
+### One crop, one place
+
+Every finding pin, dashed crop outline, Evidence thumbnail mark, and lightbox highlight for that finding must use the **same evidence crop** (`{ x, y, w, h }` in that image’s natural pixels: app screenshot or design PNG).
+
+| Surface | Correct behaviour |
+|---|---|
+| Capture pins + `.crop-outline` | Number sits on the **crop centre**. Outline uses the **same** crop rectangle. |
+| Evidence `.thumb-view` / `.crop-mark` | `layoutThumb`: zoom onto the crop (with margin) and draw the mark in **rendered px** (`crop * scale + offset`). Thumbs are the visual source of truth for “is the crop right?”. |
+| Lightbox `#lightbox .layer > .crop` | Box mapped from natural crop → **rendered `<img>` size** via `placeLightboxCrop` (`clientWidth` / `naturalWidth`), then scrolled so the crop is in view. |
+
+### Do not
+
+1. **Shove pin numbers away from the crop to avoid overlap** (old `spreadPins` with large `PIN_RINGS`). Dense pages pushed numbers onto unrelated controls while the detail crop stayed on the real element — markers and boxes disagreed. Prefer overlap at the crop centre (`placePinsOnCrop`); hover raises z-index. A short leader to a displaced number is only acceptable if displacement stays tiny and the outline still marks the true crop.
+2. **Position the lightbox crop with `%` of `.dialog-body`**. `.dialog-body` is `position: relative` and is the scrollport; an `absolute` box without a positioned figure ancestor was laid out against the scrollport, so thumbs looked right and the enlarged view looked wrong. The figure `#lightbox .layer` must be `position: relative` and wrap the image; place the box in **px on that figure** from the image’s `offsetLeft` / `offsetTop` and scale.
+3. **Treat scroll offsets as natural pixels** when the image is CSS-scaled (Fit). Always convert with `sx = clientWidth / naturalWidth` (and the same for height).
+4. **Invent a second crop** for the lightbox or for pin placement. Read the crop from the finding’s evidence (same object the thumb used).
+
+### When someone reports “preview OK, enlarge wrong”
+
+1. Confirm Evidence thumbs / `.crop-mark` still sit on the right UI (if thumbs are wrong, the stored crop or capture is wrong — fix evidence, not only CSS).
+2. If thumbs are right and the lightbox is wrong → fix `placeLightboxCrop` / `#lightbox .layer` positioning (this section), then re-render.
+3. If capture pin numbers sit on a different control than the selected outline / detail crop → ensure pins are not collision-spread off the crop centre.
+
+### After editing the template
+
+```bash
+node scripts/render-report.mjs --in <dir>/report.json --out <dir>/report.html --embed-images --run <id>
+# then restart review if a review server is open
+```
+
+Paths above are under this skill’s `design-qa/` folder; run from the repository under test with the full skill path as `pass.mjs` prints.

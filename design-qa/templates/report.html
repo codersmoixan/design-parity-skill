@@ -385,6 +385,12 @@ details.alert > .alert-description { padding: 0.375rem 0 0 1.75rem; }
 .dialog-title { font-size: 1.125rem; line-height: 1; font-weight: 600; }
 .dialog-body { flex: 1; min-height: 0; overflow: auto; padding: 1rem; background: var(--muted); }
 .dialog-footer { padding: 0.75rem 1.5rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--muted-foreground); overflow-wrap: anywhere; }
+/* Lightbox evidence: crop box is positioned on the figure that wraps the image (not the scrollport). */
+#lightbox .layer { position: relative; display: block; width: fit-content; max-width: 100%; margin: 0 auto; }
+#lightbox .layer > img { display: block; width: auto; height: auto; }
+#lightbox .dialog-body.zoom-fit .layer > img { max-width: 100%; max-height: min(70vh, calc(100vh - 14rem)); }
+#lightbox .dialog-body.zoom-100 .layer > img { max-width: none; max-height: none; }
+#lightbox .layer > .crop { position: absolute; box-sizing: border-box; border: 2px solid var(--destructive); box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.35); pointer-events: none; }
 #lightbox[hidden], #sheet-root[hidden] { display: none; }
 .toaster { position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 80; display: flex; flex-direction: column; gap: 0.5rem; width: 356px; max-width: calc(100vw - 2rem); pointer-events: none; }
 .toast { display: flex; align-items: center; gap: 0.5rem; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--popover); color: var(--popover-foreground); padding: 1rem; font-size: 0.875rem; line-height: 1.25rem; box-shadow: var(--shadow-lg); animation: toast-in .2s ease-out; }
@@ -489,10 +495,11 @@ details.alert > .alert-description { padding: 0.375rem 0 0 1.75rem; }
 .pin:hover, .pin:focus-visible, .pin.hot, .pin[aria-expanded="true"] { transform: scale(1.15); z-index: 3; }
 .pin:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
 /* Bucket on the pin: Fix now stays solid; Debt adds a dashed ring in the severity colour (the fill keeps the severity code). */
-/* A pin pushed off its crop centre (pins never overlap at the rendered scale) keeps a 1px leader to a dot on its true centre. */
-.pin-leader { position: absolute; z-index: 0; height: 1px; transform-origin: 0 50%; background: var(--c); opacity: 0.85; pointer-events: none; display: none; }
+/* A pin nudged off its crop centre (small collision avoidance only) keeps a leader to a dot on its true centre.
+   Displacement is capped so the number never drifts onto an unrelated control while the detail crop stays on the element. */
+.pin-leader { position: absolute; z-index: 0; height: 2px; transform-origin: 0 50%; background: var(--c); opacity: 0.95; pointer-events: none; display: none; }
 .pin-leader.on { display: block; }
-.pin-leader::before { content: ""; position: absolute; left: -3px; top: -2.5px; width: 6px; height: 6px; border-radius: 9999px; background: var(--c); box-shadow: 0 0 0 1.5px var(--background); }
+.pin-leader::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 9999px; background: var(--c); box-shadow: 0 0 0 2px var(--background); }
 .pin[data-bucket="debt"]::after { content: ""; position: absolute; inset: -5px; border-radius: 9999px; border: 1.5px dashed var(--c); pointer-events: none; }
 @keyframes pin-flash { from { box-shadow: 0 0 0 2px var(--background), 0 0 0 3px var(--c); } to { box-shadow: 0 0 0 2px var(--background), 0 0 0 16px transparent; } }
 .pin.flash { transform: scale(1.15); z-index: 4; box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--c); animation: pin-flash .9s ease-out 3; }
@@ -572,8 +579,9 @@ details.alert > .alert-description { padding: 0.375rem 0 0 1.75rem; }
   .ann-foot { padding-bottom: max(0.625rem, env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) { .ann-panel { animation: none; } }
-.crop-outline { position: absolute; border: 2px dashed var(--c); border-radius: 4px; pointer-events: none; display: none; }
-.crop-outline.show { display: block; }
+.crop-outline { position: absolute; border: 2px dashed var(--c); border-radius: 4px; pointer-events: none; display: none; box-sizing: border-box; }
+.crop-outline.show, .crop-outline.selected { display: block; }
+.crop-outline.selected { border-style: solid; border-width: 2px; box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.12); }
 .side { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 720px) { .side { grid-template-columns: minmax(0, 1fr); } }
 .pane-label { display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.375rem; font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
@@ -1714,12 +1722,14 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
         if (!crop) return;
         var cx = (crop.x + crop.w / 2) * k, cy = (crop.y + crop.h / 2) * k;
         var off = !!S.sevOff[p.f.severity];
+        // Pin number and crop-outline share the same crop box (image pixels → % of the layer).
+        // Do not shove the number away from this box: the detail pane crops the same rectangle.
+        var boxL = (crop.x * k / W * 100), boxT = (crop.y * k / H * 100), boxW = (crop.w * k / W * 100), boxH = (crop.h * k / H * 100);
         layer.appendChild(h('span', { class: 'crop-outline', 'data-sev': p.f.severity, 'data-fid': p.f.id, hidden: off,
-          style: 'left:' + (crop.x * k / W * 100) + '%;top:' + (crop.y * k / H * 100) + '%;width:' + (crop.w * k / W * 100) + '%;height:' + (crop.h * k / H * 100) + '%' }));
-        var leader = h('span', { class: 'pin-leader', 'data-sev': p.f.severity, 'data-fid': p.f.id, 'aria-hidden': 'true', hidden: off });
-        layer.appendChild(leader);
+          style: 'left:' + boxL + '%;top:' + boxT + '%;width:' + boxW + '%;height:' + boxH + '%' }));
         var pin = h('button', { type: 'button', class: 'pin' + (hollow ? ' hollow' : '') + (FLASH.fid === p.f.id ? ' flash' : ''), 'data-sev': p.f.severity, 'data-fid': p.f.id, 'data-n': String(p.n), hidden: off,
           'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'data-tip': p.f.id + ' · ' + p.f.title,
+          'data-crop': [crop.x, crop.y, crop.w, crop.h].join(','),
           style: 'left:' + (cx / W * 100) + '%;top:' + (cy / H * 100) + '%' }, String(p.n));
         paintPin(pin);
         pin.addEventListener('mouseenter', function () { hot(p.f.id, true); });
@@ -1728,11 +1738,12 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
         pin.addEventListener('blur', function () { hot(p.f.id, false); });
         pin.addEventListener('click', function () { openPanel(p.f.id, { kind: 'pin', trigger: pin, host: pin.closest('.dialog') || heroSection, toggle: true }); });
         layer.appendChild(pin);
-        items.push({ x: cx / W, y: cy / H, pin: pin, leader: leader });
+        items.push({ x: cx / W, y: cy / H, pin: pin, leader: null, crop: crop });
       });
       // This browser's annotations on this image (section 9c): their boxes, and rounded-square pins A1, A2 … after the finding pins.
       anOf(P.state, kind).forEach(function (x) { items.push(anPin(layer, x, W, H)); });
-      spreadPins(layer, items);
+      // Keep every pin on its crop centre (no collision shove). Overlap is fine; hover raises z-index.
+      placePinsOnCrop(layer, items);
       // Rejected worklist regions of this state: dimmed dashed outlines, distinct from finding pins (app-side images only).
       if (kind === 'app') REJ.forEach(function (x) {
         var c = x.crop; if (x.state !== S.state || !c || typeof c.x !== 'number') return;
@@ -1753,44 +1764,25 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
     place();
     if (!(img.complete && img.naturalWidth)) img.addEventListener('load', place);
     if (over && !(over.complete && over.naturalWidth)) over.addEventListener('load', place);
-    // Fit, zoom, fullscreen, side by side, a window resize or a tab coming back: re-spread at the new rendered size.
+    // Fit / zoom / resize: re-apply centres (no collision shove).
     if (window.ResizeObserver) {
-      var ro = new ResizeObserver(function () { if (!layer.isConnected) { ro.disconnect(); return; } spreadPins(layer, items); });
+      var ro = new ResizeObserver(function () { if (!layer.isConnected) { ro.disconnect(); return; } placePinsOnCrop(layer, items); });
       ro.observe(layer);
-    } else window.addEventListener('resize', function () { if (layer.isConnected) spreadPins(layer, items); });
+    } else window.addEventListener('resize', function () { if (layer.isConnected) placePinsOnCrop(layer, items); });
   }
-  // Pins are 24px circles (34px with a Debt ring), in CSS pixels whatever the image scale: collision avoidance runs in rendered
-  // pixels. In pin order (severity, then score), each pin takes its crop centre if free, else the nearest free spot on
-  // growing rings around it (right, left, below, above, then the diagonals), inside the image. A displaced pin draws a
-  // 1px leader to a dot on its true centre, so it still points at its element.
-  var PIN_SPACE = 34, PIN_R = 12, PIN_STEP = 6, PIN_RINGS = 40;
-  var PIN_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
-  function spreadPins(layer, items) {
-    var w = layer.clientWidth, ht = layer.clientHeight;
-    if (!w || !ht || !items.length) return;
-    var taken = [];
-    function free(x, y) { for (var i = 0; i < taken.length; i++) if (Math.abs(taken[i][0] - x) < PIN_SPACE && Math.abs(taken[i][1] - y) < PIN_SPACE) return false; return true; }
-    function inside(x, y) { return x >= PIN_R && x <= w - PIN_R && y >= PIN_R && y <= ht - PIN_R; }
+  // Pin number sits on the crop centre. The dashed/selected outline uses the same crop rectangle.
+  // Spreading numbers away from the crop made markers and detail crops disagree; overlap is preferred.
+  function placePinsOnCrop(layer, items) {
+    if (!items.length) return;
     items.forEach(function (it) {
-      var tx = it.x * w, ty = it.y * ht, at = free(tx, ty) ? [tx, ty] : null;
-      for (var k = 1; !at && k <= PIN_RINGS; k++) {
-        for (var d = 0; d < PIN_DIRS.length; d++) {
-          var x = tx + PIN_DIRS[d][0] * k * PIN_STEP, y = ty + PIN_DIRS[d][1] * k * PIN_STEP;
-          if (inside(x, y) && free(x, y)) { at = [x, y]; break; }
-        }
-      }
-      if (!at) at = [tx, ty]; // nowhere free within reach: stay on the element
-      taken.push(at);
-      it.pin.style.left = (at[0] / w * 100) + '%'; it.pin.style.top = (at[1] / ht * 100) + '%';
-      var dx = at[0] - tx, dy = at[1] - ty, len = Math.sqrt(dx * dx + dy * dy), moved = len >= 1;
-      it.pin.toggleAttribute('data-moved', moved);
-      it.leader.classList.toggle('on', moved);
-      if (moved) {
-        it.leader.style.left = (it.x * 100) + '%'; it.leader.style.top = (it.y * 100) + '%';
-        it.leader.style.width = len + 'px'; it.leader.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
-      }
+      it.pin.style.left = (it.x * 100) + '%';
+      it.pin.style.top = (it.y * 100) + '%';
+      it.pin.removeAttribute('data-moved');
+      if (it.leader) it.leader.classList.remove('on');
     });
   }
+  // Kept for annotation pins that still call spreadPins in anOf/anPin paths.
+  function spreadPins(layer, items) { placePinsOnCrop(layer, items); }
   function renderStage(box, full) {
     clear(box);
     var r = stateRow[S.state];
@@ -2108,6 +2100,11 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
       var on = !!PANEL.fid && el.getAttribute('data-fid') === PANEL.fid;
       el.setAttribute('aria-expanded', String(on));
       if (on) el.setAttribute('aria-controls', 'ann-panel'); else el.removeAttribute('aria-controls');
+    });
+    // Keep the true crop box visible while the annotation panel is open, so a nudged pin number
+    // cannot be mistaken for the cropped region shown in the detail pane.
+    Array.prototype.forEach.call(document.querySelectorAll('.pins .crop-outline[data-fid]'), function (el) {
+      el.classList.toggle('selected', !!PANEL.fid && el.getAttribute('data-fid') === PANEL.fid);
     });
   }
   function placeDock() { // top offset: under the rail head (hero) or the dialog header (fullscreen)
@@ -3545,23 +3542,40 @@ body.has-bar .toaster { bottom: calc(var(--bar-h, 3.5rem) + 1.75rem); }
     lb.hidden = true; clear(lb);
     if (LB.lastFocus && LB.lastFocus.focus && document.contains(LB.lastFocus)) LB.lastFocus.focus();
   }
+  // Map evidence crop (natural image px) onto the rendered <img> inside the lightbox figure.
+  // Must not use % of .dialog-body: that scrollport is taller/wider than the image, so the box drifts.
+  function placeLightboxCrop(box, im, crop, body) {
+    var W = im.naturalWidth, H = im.naturalHeight;
+    if (!W || !H || !crop) return;
+    var rw = im.clientWidth, rh = im.clientHeight;
+    if (!rw || !rh) return;
+    var sx = rw / W, sy = rh / H;
+    box.style.left = (im.offsetLeft + crop.x * sx) + 'px';
+    box.style.top = (im.offsetTop + crop.y * sy) + 'px';
+    box.style.width = Math.max(2, crop.w * sx) + 'px';
+    box.style.height = Math.max(2, crop.h * sy) + 'px';
+    var cx = im.offsetLeft + (crop.x + crop.w / 2) * sx;
+    var cy = im.offsetTop + (crop.y + crop.h / 2) * sy;
+    body.scrollLeft = Math.max(0, cx - body.clientWidth / 2);
+    body.scrollTop = Math.max(0, cy - body.clientHeight / 2);
+  }
   function renderLightbox() {
     clear(lb);
     var it = LB.items[LB.i]; if (!it) return;
-    var src = imgSrc(it.path), fig = h('figure', { class: 'layer', style: 'margin:0 auto;overflow:hidden' + (LB.zoom === '100' ? '' : ';width:auto') });
+    var src = imgSrc(it.path), fig = h('figure', { class: 'layer' });
     var body = h('div', { class: 'dialog-body ' + (LB.zoom === '100' ? 'zoom-100' : 'zoom-fit') }, fig);
     var im = src ? h('img', { src: src, alt: it.label + (it.state ? ', ' + stateLabel(it.state) : '') }) : h('div', { class: 'missing' }, icon('image-off'), 'Image unavailable: ' + it.path);
     fig.appendChild(im);
     if (src && it.crop) {
-      var box = h('div', { class: 'crop', style: 'position:absolute;border:2px solid var(--destructive);box-shadow:0 0 0 9999px rgb(0 0 0 / 0.35);pointer-events:none' });
+      var box = h('div', { class: 'crop', 'aria-hidden': 'true' });
       fig.appendChild(box);
-      var place = function () {
-        var W = im.naturalWidth, H = im.naturalHeight; if (!W || !H) return;
-        box.style.left = (it.crop.x / W * 100) + '%'; box.style.top = (it.crop.y / H * 100) + '%';
-        box.style.width = (it.crop.w / W * 100) + '%'; box.style.height = (it.crop.h / H * 100) + '%';
-        if (LB.zoom === '100') { body.scrollLeft = Math.max(0, it.crop.x + it.crop.w / 2 - body.clientWidth / 2); body.scrollTop = Math.max(0, it.crop.y + it.crop.h / 2 - body.clientHeight / 2); }
-      };
+      var place = function () { placeLightboxCrop(box, im, it.crop, body); };
       if (im.complete && im.naturalWidth) place(); else im.addEventListener('load', place);
+      if (window.ResizeObserver) {
+        var ro = new ResizeObserver(function () { if (!box.isConnected) { ro.disconnect(); return; } place(); });
+        ro.observe(im);
+        ro.observe(body);
+      } else window.addEventListener('resize', place);
     }
     var dlg = h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lb-title' },
       h('div', { class: 'dialog-header' }, h('h2', { class: 'dialog-title', id: 'lb-title' }, LB.title || it.path),

@@ -158,7 +158,7 @@ Quote free text in single quotes, each `'` written `'\''`; prefer a file and `--
 | references/ledgers.md | You write ledger rows by hand or judge motion. |
 | references/review.md | The review, triage, dismissals, debt, or explaining the report. |
 | references/fix-loop.md | Fixing the fix-now set. |
-| references/report.md | `pass.mjs report` lists a problem its message does not settle. |
+| references/report.md | `pass.mjs report` lists a problem its message does not settle; **or you edit `templates/report.html`** (pins, Evidence thumbs, lightbox crop — see “Interactive report.html” invariants there). |
 | references/config.md | The person asks about a config key. |
 | references/design-backfill.md | Step 2, design backfill. |
 | references/ci.md | ci mode, or the CI workflow. |
