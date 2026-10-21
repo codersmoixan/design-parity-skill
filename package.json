@@ -1,12 +1,16 @@
 {
-  "name": "design-qa",
-  "version": "0.2.3",
-  "description": "Design → code parity QA scripts for the design-qa Claude Code skill: capture, compare, pixel diff, render, validate.",
+  "name": "ui-quality-testing",
+  "version": "1.0.0",
+  "description": "UI quality / design→code parity QA for Cursor (based on design-qa 0.2.3): capture, compare, pixel diff, design-system audit, report. Local forks: linked-frame default, optional multi-screen, qa/ui artifacts.",
   "type": "module",
   "license": "MIT",
   "private": true,
   "engines": {
     "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codersmoixan/ui-quality-testing-skill.git"
   },
   "scripts": {
     "doctor": "node scripts/doctor.mjs"
