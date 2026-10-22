@@ -52,6 +52,8 @@ const LEGACY_OUT_DIR = 'qa-reports';
 export function ensureUiProjectDir(cwd = process.cwd()) {
   const dir = path.resolve(cwd, UI_PROJECT_DIR);
   mkdirSync(dir, { recursive: true });
+  // First pass: create qa/ui/.gitignore with .auth/ so login sessions are never committed.
+  ensureSessionGitignore(dir);
   return dir;
 }
 
