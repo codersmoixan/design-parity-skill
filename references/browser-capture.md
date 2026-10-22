@@ -6,7 +6,7 @@ Read when: capture stops on a sign-in page, a banner or notice needs hiding, the
 
 ## Sign-in pages
 
-When `start` or `evidence` says the app needs a signed-in session, run `Next:` exactly as printed, as a long-running command: it chains `setup.mjs save-session` and the stage again. A browser window opens and the person signs in; you type nothing. The session is saved outside the repository and only its path is recorded (`app.auth.storageState`). Never capture without a session, never rate parity on a sign-in page, and never call the environment unreachable because of one: `capture.mjs --probe` tells the two apart (exit 0 reachable and signed in · 6 needs a session · 5 unreachable).
+When `start` or `evidence` says the app needs a signed-in session, run `Next:` exactly as printed, as a long-running command: it chains `setup.mjs save-session` and the stage again. A browser window opens and the person signs in; you type nothing. The session is saved under `qa/ui/.auth/<host>.json` by default (gitignored; `qa/ui/.gitignore` lists `.auth/` — same pattern as functional-test `qa/functional/.auth/`), and only its path is recorded (`app.auth.storageState`, usually `.auth/<host>.json` relative to the config). Never commit that file; never default to `~/.design-qa/sessions/`. Never capture without a session, never rate parity on a sign-in page, and never call the environment unreachable because of one: `capture.mjs --probe` tells the two apart (exit 0 reachable and signed in · 6 needs a session · 5 unreachable).
 
 **Set `app.auth.signedInSelector`** for every app behind a sign-in (an element only the signed-in app shows, in every state: the navigation, the user menu). Without it the checks below are guesses.
 

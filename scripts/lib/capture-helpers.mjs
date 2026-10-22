@@ -473,9 +473,9 @@ function isSignInForm(s, { password = true } = {}) {
  */
 export function signInHelp({ auth = 'none', prefix = 'DESIGN_QA_APP', url = '<url>' } = {}) {
   const save =
-    `save a signed-in session with \`${scriptCommand('setup.mjs')} save-session\` (a browser window opens, the person signs in, ` +
-    'and the session path is recorded as app.auth.storageState); or by hand: sign in once in a browser and save the session with ' +
-    `\`npx playwright codegen --save-storage=<file outside the repository> ${url}\`, ` +
+    `save a signed-in session with \`${scriptCommand('setup.mjs')} save-session\` (a browser window opens, the person signs in; ` +
+    'default path qa/ui/.auth/<host>.json, gitignored; recorded as app.auth.storageState); or by hand: sign in once and save with ' +
+    `\`npx playwright codegen --save-storage=qa/ui/.auth/<host>.json ${url}\` (keep it gitignored), ` +
     `then set ${prefix}_STORAGE_STATE=<that file> and capture with --auth storage-state (config: app.auth.type "storageState")`;
   const why = {
     'storage-state': `The session in ${prefix}_STORAGE_STATE did not sign in (expired, or saved for another host). Save a fresh one: ${save}.`,

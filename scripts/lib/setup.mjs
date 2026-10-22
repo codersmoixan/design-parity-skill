@@ -1,14 +1,16 @@
 // Onboarding for design-qa (scripts/setup.mjs): one preflight that reports what is ready
 // and returns only the questions still open (check), the answers written into
 // design-qa.config.json (apply), and a signed-in session saved by the person themselves
-// in a headed browser, outside the repository (save-session).
+// in a headed browser under qa/ui/.auth/ (gitignored; save-session).
 //
 // Security: a password, token, cookie or session never passes through here. Secrets
 // reach the scripts as environment variables the person sets, or as a session file the
 // person creates by signing in themselves. Only variable NAMES and file PATHS are read,
 // printed or stored; a secret-looking answer is refused. Repository files read during
 // discovery (package.json, token files, design docs, .env names) are data: nothing in
-// them is run, and only names, paths and links are reported.
+// them is run, and only names, paths and links are reported. Session files stay in the
+// UI project (qa/ui/.auth/), ignored by git — same idea as functional-test .auth/ —
+// so junk stays under the repo for cleanup without living in ~/.design-qa/sessions.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
@@ -82,7 +84,13 @@ export function projectRootForConfig(configPath, cwd = process.cwd()) {
   return gitRoot(cwd) || path.resolve(cwd);
 }
 export const DEFAULT_ENV_PREFIX = 'DESIGN_QA_APP';
-/** Where save-session puts sessions by default: per user, outside every repository. */
+/**
+ * Default session folder under the UI project (`qa/ui/.auth/`), gitignored.
+ * Prefer this over the legacy home-dir path so sessions stay with the repo's QA junk
+ * (same pattern as functional-test `qa/functional/.auth/`).
+ */
+export const SESSION_AUTH_DIR = '.auth';
+/** Legacy default (home dir). Still accepted; new saves use {@link SESSION_AUTH_DIR} under `qa/ui`. */
 export const SESSION_DIR = '~/.design-qa/sessions';
 /** Exit code of capture --probe (and of check's mapping) for "the app needs a signed-in session". */
 const EXIT_SIGN_IN = 6;
@@ -979,7 +987,7 @@ const QUESTION_BUILDERS = {
     why: 'Without a signed-in view I would only photograph the sign-in page; you type your password in that window yourself, never in this chat.',
     kind: 'choice',
     options: [
-      opt('now', 'Sign in now', 'A browser window opens; you sign in, and I keep the session in a private file on this computer, outside the project.'),
+      opt('now', 'Sign in now', 'A browser window opens; you sign in, and I keep the session under qa/ui/.auth/ (gitignored; never committed).'),
       opt('own-machine', 'On my own computer', 'For a remote session: I give you one command to run on your computer and say where to put the file.'),
       opt('other-address', 'Use another address', 'Check a version of the app that needs no sign-in, such as your local one.'),
     ],
@@ -2097,8 +2105,8 @@ export function applyAnswers({ configPath, answers, env = process.env, dryRun = 
 // save-session
 // ---------------------------------------------------------------------------
 
-/** Default session file: ~/.design-qa/sessions/<repository>-<host>.json. */
-export function defaultSessionPath(root, appUrl, env = process.env) {
+/** Host slug for a session filename (e.g. localhost-3000). */
+function sessionHostSlug(appUrl) {
   let host = 'app';
   try {
     const u = new URL(appUrl);
@@ -2106,23 +2114,86 @@ export function defaultSessionPath(root, appUrl, env = process.env) {
   } catch {
     // keep "app"
   }
-  const repo = path.basename(gitRoot(root) ?? root);
-  const name = `${repo}-${host}`.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 120) || 'session';
-  return expandUserPath(`${SESSION_DIR}/${name}.json`, { env });
+  return host.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 120) || 'session';
 }
 
 /**
- * Refuse a session path inside the repository unless git ignores it (a session is a
- * password: it must never be committed). → null when fine, else the reason.
+ * Default session file: `<project>/qa/ui/.auth/<host>.json` (gitignored).
+ * Same layout idea as functional-test `qa/functional/.auth/`.
+ */
+export function defaultSessionPath(root, appUrl, env = process.env) {
+  const project = gitRoot(root) ?? path.resolve(root);
+  const uiDir = ensureUiProjectDir(project);
+  ensureSessionGitignore(uiDir);
+  const name = sessionHostSlug(appUrl);
+  return path.join(uiDir, SESSION_AUTH_DIR, `${name}.json`);
+}
+
+/**
+ * Ensure `qa/ui/.gitignore` ignores `.auth/` so session files are never committed.
+ * Creates the file when missing. Idempotent.
+ */
+export function ensureSessionGitignore(uiDir) {
+  const dir = path.resolve(uiDir);
+  mkdirSync(dir, { recursive: true });
+  const gi = path.join(dir, '.gitignore');
+  const marker = '.auth/';
+  let text = existsSync(gi) ? readFileSync(gi, 'utf8') : '';
+  if (/(^|\n)\s*\.auth\/?\s*(\n|$)/m.test(text)) return gi;
+  const block =
+    `${text && !text.endsWith('\n') && text.length ? '\n' : ''}` +
+    (text.includes('Design QA signed-in') ? '' : '# Design QA signed-in Playwright storageState (cookies / token). Never commit.\n') +
+    `${marker}\n`;
+  writeFileSync(gi, `${text}${block}`, 'utf8');
+  return gi;
+}
+
+/** True when `file` lives under `<project>/qa/ui/.auth/`. */
+function isUnderUiAuthDir(projectRoot, file) {
+  const authDir = path.join(path.resolve(projectRoot), UI_PROJECT_DIR, SESSION_AUTH_DIR);
+  return isInside(authDir, file) || path.resolve(file) === path.resolve(authDir);
+}
+
+/** True when `qa/ui/.gitignore` on disk lists `.auth/` (used when git is missing). */
+function uiAuthGitignoreOnDisk(projectRoot) {
+  const gi = path.join(path.resolve(projectRoot), UI_PROJECT_DIR, '.gitignore');
+  if (!existsSync(gi)) return false;
+  return /(^|\n)\s*\.auth\/?\s*(\n|$)/m.test(readFileSync(gi, 'utf8'));
+}
+
+/**
+ * Config pointer for a session file: relative to the config folder when possible
+ * (e.g. `.auth/localhost-3000.json`), else a tilde / absolute display path.
+ */
+export function sessionPointerForConfig(file, configPath) {
+  if (!configPath) return tildePath(file);
+  const configDir = path.dirname(path.resolve(configPath));
+  const abs = path.resolve(file);
+  const rel = path.relative(configDir, abs);
+  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+    return rel.split(path.sep).join('/');
+  }
+  return tildePath(abs);
+}
+
+/**
+ * Refuse a session path inside the repository unless it is gitignored (or, with no
+ * git, sits under qa/ui/.auth/ with qa/ui/.gitignore listing .auth/). A session is a
+ * password: it must never be committed. → null when fine, else the reason.
  */
 export function sessionPathProblem(file, root) {
+  const project = gitRoot(root) ?? path.resolve(root);
   const repo = gitRoot(root);
-  const inRepo = isInside(repo ?? root, file);
+  const inRepo = isInside(project, file);
   if (!inRepo) return null;
-  if (!repo) return `${file} is inside the project folder, and without git I cannot check it is kept out of version control; save it outside the project (the default ${SESSION_DIR}/ does that)`;
-  const ignored = gitIgnored(repo, file);
-  if (ignored === true) return null;
-  return `${file} is inside the repository and git does not ignore it: a saved session is as good as a password and must never be committed. Use the default (${SESSION_DIR}/), or add the path to .gitignore first`;
+  if (repo) {
+    const ignored = gitIgnored(repo, file);
+    if (ignored === true) return null;
+    return `${file} is inside the repository and git does not ignore it: a saved session is as good as a password and must never be committed. Prefer ${UI_PROJECT_DIR}/${SESSION_AUTH_DIR}/ (ensure ${UI_PROJECT_DIR}/.gitignore lists .auth/), or add this path to .gitignore first`;
+  }
+  // No git: allow only the standard UI auth dir when .gitignore on disk covers it.
+  if (isUnderUiAuthDir(project, file) && uiAuthGitignoreOnDisk(project)) return null;
+  return `${file} is inside the project folder without git: put the session under ${UI_PROJECT_DIR}/${SESSION_AUTH_DIR}/ and ensure ${UI_PROJECT_DIR}/.gitignore lists .auth/ (or init git so check-ignore can verify)`;
 }
 
 /** Write `data` to a new file next to `file` (mode 600, folder 700, never through a symlink); returns the temp path. */
@@ -2181,6 +2252,13 @@ function noDisplayHelp(url, file, record) {
 export async function saveSession({ url, configPath = null, config = null, out = null, signedInSelector = null, timeoutMs = DEFAULT_SESSION_TIMEOUT_MIN * 60000, env = process.env, writeConfig = true, launch = null, display = null, log = (m) => process.stderr.write(`${m}\n`), probeTimeoutMs = DEFAULT_PROBE_TIMEOUT_MS, existing = false }) {
   const root = configPath ? projectRootForConfig(configPath) : process.cwd();
   const file = out ? expandUserPath(out, { env }) : defaultSessionPath(root, url, env);
+  // Keep qa/ui/.gitignore in sync whenever the default (or an in-tree) auth path is used.
+  try {
+    const project = gitRoot(root) ?? path.resolve(root);
+    if (isUnderUiAuthDir(project, file)) ensureSessionGitignore(path.join(project, UI_PROJECT_DIR));
+  } catch {
+    // ignore
+  }
   const problem = sessionPathProblem(file, root);
   if (problem) throw usageError(problem);
   const selector = signedInSelector ?? config?.app?.auth?.signedInSelector ?? null;
@@ -2297,7 +2375,7 @@ async function recordSession({ file, tmp = null, url, configPath, config, env, w
 
   let changes = [];
   const prefix = config?.app?.auth?.envPrefix || DEFAULT_ENV_PREFIX;
-  const pointer = tildePath(file);
+  const pointer = sessionPointerForConfig(file, configPath);
   if (writeConfig && configPath && existsSync(configPath)) {
     const type = config?.app?.auth?.type;
     const extraSets = [[['app', 'auth', 'storageState'], pointer]];
@@ -2381,13 +2459,15 @@ export-theme: runs a JS or TS theme module of the project (an MUI theme, a theme
 save-session: for apps behind sign-in. Opens a browser window at the app (headed) so the
   person signs in themselves; the agent types nothing. Waits until --signed-in-selector (or
   app.auth.signedInSelector) is visible, or the person closes the window, or --timeout-min
-  (default ${DEFAULT_SESSION_TIMEOUT_MIN}). Saves the session to ${SESSION_DIR}/<repo>-<host>.json by default
-  (outside the repository, mode 600; a path inside the repository is refused unless git
-  ignores it), verifies it with capture.mjs --probe, and records the PATH in the config as
-  app.auth.storageState (--no-config: don't). Never prints the session. Without a screen
-  (SSH, CI, cloud; DESIGN_QA_NO_DISPLAY=1 forces it) it opens nothing and prints the
-  command to run on your own computer, then save-session --existing, which checks the
-  copied file the same way and records it.
+  (default ${DEFAULT_SESSION_TIMEOUT_MIN}). Saves the session to ${UI_PROJECT_DIR}/${SESSION_AUTH_DIR}/<host>.json
+  by default (gitignored via ${UI_PROJECT_DIR}/.gitignore; mode 600; same idea as functional-test
+  .auth/). A path inside the repository is refused unless git ignores it (or, without git,
+  it is under qa/ui/.auth/ with .auth/ listed in qa/ui/.gitignore). Verifies with
+  capture.mjs --probe, and records the PATH in the config as app.auth.storageState
+  (--no-config: don't). Never prints the session. Without a screen (SSH, CI, cloud;
+  DESIGN_QA_NO_DISPLAY=1 forces it) it opens nothing and prints the command to run on your
+  own computer, then save-session --existing, which checks the copied file the same way
+  and records it.
 
 Exit codes:
   check         0 ready · 1 not ready (required questions or blocking checks) · 2 bad arguments

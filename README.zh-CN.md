@@ -106,6 +106,7 @@
 - **工作目录** = 被测仓库（跑命令、写报告）；**本 skill 目录** = 工具依赖（`pixelmatch`、`pngjs`、`playwright`），不改被测仓库的 `package.json`。
 - 缺依赖时跑 `ensure-deps.mjs`：已设 `DESIGN_QA_AUTO_INSTALL=1`，或曾同意过（`~/.design-qa/auto-install.json`）则直接安装；否则只问一次，同意后用 `ensure-deps.mjs --grant`。
 - 密钥和下面这些选项放在被测项目**根目录**的 `.env` / `.env.local`（或当前终端）。脚本会自动加载。`qa/ui/design-qa.config.json` 里已经写过的值优先。不要把 token 写进对话，也不要提交 `.env`。不要把 `.env` 放在 `qa/ui` 下。若已误发 token，请在 Figma 轮换作废。关闭加载：`DESIGN_QA_LOAD_ENV=0`。
+- `save-session` 默认把登录会话写到 `qa/ui/.auth/`（由 `qa/ui/.gitignore` 忽略），与功能测试的 `qa/functional/.auth/` 同思路——工程产生的垃圾留在仓库内便于清理，会话文件永不提交。
 - 本地与远程地址都会询问 Cookie/遮挡条（远程还会问是否登录态），除非 `DESIGN_QA_HIDE` 和 `DESIGN_QA_SIGNED_IN` 都已配置。询问时，答案写入 `pre-capture-answers.json`，再执行 `ack-pre-capture`。
 
 脚本从被测项目的目录运行。`SKILL.md` 里的 `node scripts/...` 实际指向本 skill 的 `scripts/`。Windows PowerShell 下链式步骤使用 `seq.mjs`，不要改成 `&&`。
@@ -121,7 +122,7 @@
 | `JIRA_BASE_URL`、`JIRA_EMAIL`、`JIRA_API_TOKEN` | 三项都有时，不再询问 Jira 凭证。配置里没有站点地址时，`JIRA_BASE_URL` 同时作为站点地址。 |
 | `DESIGN_QA_HIDE` | `none`（不隐藏）、`find`（由检查去找遮挡，不写入配置），或一段 JSON 形式的 preCapture。 |
 | `DESIGN_QA_SIGNED_IN` | `true` 或 `false`。必须和 `DESIGN_QA_HIDE` 同时配置，才会跳过远程页面的 Cookie / 登录态询问。`true` 且没有已保存的登录时，会打开浏览器，由你自己登录。 |
-| `DESIGN_QA_APP_STORAGE_STATE` | 使用这份已保存的登录会话。前缀跟 `app.auth.envPrefix`，默认是 `DESIGN_QA_APP`。 |
+| `DESIGN_QA_APP_STORAGE_STATE` | 使用这份已保存的登录会话。前缀跟 `app.auth.envPrefix`，默认是 `DESIGN_QA_APP`。默认落盘路径为 `qa/ui/.auth/<host>.json`（gitignore，与功能测试 `.auth/` 同思路；不再默认写到 `~/.design-qa/sessions/`）。 |
 | `DESIGN_QA_APP_COOKIE` | 用这份 cookie 登录。 |
 | `DESIGN_QA_APP_USER`、`DESIGN_QA_APP_PASS`、`DESIGN_QA_APP_AUTH=basic` | HTTP 基本认证。配置里已经写了登录方式时，以配置为准。会话文件不存在或已经过期时，仍会询问。 |
 | `DESIGN_QA_LOAD_ENV=0` | 不加载 `.env` / `.env.local`。 |

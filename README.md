@@ -95,6 +95,7 @@ If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chro
 - **Working directory** = the repository under test (commands and reports). **This skill folder** = tool deps (`pixelmatch`, `pngjs`, `playwright`); the app's `package.json` is not modified.
 - Missing packages: run `ensure-deps.mjs`. With `DESIGN_QA_AUTO_INSTALL=1` or a prior consent file (`~/.design-qa/auto-install.json`), install without asking; otherwise ask once, then `ensure-deps.mjs --grant`.
 - Put secrets and the choices below in the app repo's root `.env` / `.env.local` (or the shell). Scripts load those files automatically. A value already in `qa/ui/design-qa.config.json` wins. Never paste tokens into chat or commit `.env`. Do not put `.env` under `qa/ui`. Opt out of env loading: `DESIGN_QA_LOAD_ENV=0`.
+- Signed-in Playwright sessions from `save-session` default to `qa/ui/.auth/` (gitignored via `qa/ui/.gitignore`), same idea as functional-test `qa/functional/.auth/` — keep project junk under the repo for cleanup; never commit the session file.
 - On local and remote URLs, `start` asks about cookie/consent chrome (remote also asks signed-in) unless `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are both set. When it does ask, answers go to `pre-capture-answers.json`, then `ack-pre-capture`.
 
 Commands run from the repository under test. A `node scripts/...` path in `SKILL.md` points at this skill's `scripts/` directory. Chained Next commands use `seq.mjs` (not shell `&&`) so PowerShell works.
@@ -110,7 +111,7 @@ Scripts read these from the repository-root `.env` / `.env.local` or the shell. 
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | All three set: do not ask for Jira credentials. `JIRA_BASE_URL` is also the Jira site URL when the config has none. |
 | `DESIGN_QA_HIDE` | `none` (hide nothing), `find` (look for the banner; not saved), or a JSON preCapture object. |
 | `DESIGN_QA_SIGNED_IN` | `true` or `false`. Both this and `DESIGN_QA_HIDE` must be set to skip the remote cookie / signed-in question. `true` without a saved session opens a browser window; you sign in there. |
-| `DESIGN_QA_APP_STORAGE_STATE` | Use this saved session. Prefix follows `app.auth.envPrefix` (default `DESIGN_QA_APP`). |
+| `DESIGN_QA_APP_STORAGE_STATE` | Use this saved session. Prefix follows `app.auth.envPrefix` (default `DESIGN_QA_APP`). Default on disk: `qa/ui/.auth/<host>.json` (gitignored; not `~/.design-qa/sessions/`). |
 | `DESIGN_QA_APP_COOKIE` | Sign in with this cookie. |
 | `DESIGN_QA_APP_USER`, `DESIGN_QA_APP_PASS`, `DESIGN_QA_APP_AUTH=basic` | HTTP basic auth. An auth type already in the config wins. A missing or expired session is still asked. |
 | `DESIGN_QA_LOAD_ENV=0` | Do not load `.env` / `.env.local`. |

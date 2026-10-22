@@ -27,7 +27,7 @@
             "storageState": {
               "type": "string",
               "minLength": 1,
-              "description": "PATH of a Playwright storage-state file a person saved by signing in themselves (scripts/setup.mjs save-session; default ~/.design-qa/sessions/<repo>-<host>.json). Never the session itself. ~ and ${ENV} are expanded; a relative path is relative to the config file. Used for auth type storageState when <envPrefix>_STORAGE_STATE is not set (the variable wins). The file must be outside the repository or git-ignored."
+              "description": "PATH of a Playwright storage-state file a person saved by signing in themselves (scripts/setup.mjs save-session; default qa/ui/.auth/<host>.json, gitignored via qa/ui/.gitignore — same idea as functional-test .auth/). Never the session itself. ~ and ${ENV} are expanded; a relative path is relative to the config file (e.g. .auth/localhost-3000.json). Used for auth type storageState when <envPrefix>_STORAGE_STATE is not set (the variable wins). The file must be git-ignored (or under qa/ui/.auth/ with .auth/ listed in qa/ui/.gitignore)."
             },
             "login": {
               "type": ["object", "null"],

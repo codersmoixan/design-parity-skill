@@ -15,7 +15,7 @@ String values may hold `${ENV_VAR}` placeholders, expanded at capture time (a mi
 | `app.readyUrl` | `/` | Polled until it answers before capturing. |
 | `app.auth.type` | `none` | `none`, `basic`, `cookie`, `storageState` or `login` (references/browser-capture.md). |
 | `app.auth.envPrefix` | `DESIGN_QA_APP` | Prefix of the credential variables. |
-| `app.auth.storageState` | none | The path of the session a person saved with `setup.mjs save-session` (default `~/.design-qa/sessions/<repo>-<host>.json`, outside the repository). Never print the file. |
+| `app.auth.storageState` | none | The path of the session a person saved with `setup.mjs save-session`. Default: `qa/ui/.auth/<host>.json` (relative to the config as `.auth/<host>.json`), gitignored via `qa/ui/.gitignore`. Same idea as functional-test `.auth/`. Never print or commit the file. Legacy home-dir paths still work if pointed here explicitly. |
 | `app.auth.login` | null | `{ url, userSelector, passSelector, submitSelector, successSelector }` for `login`. |
 | `app.auth.signedInSelector` | none | An element only the signed-in app shows, in every state. Set it for every app behind a sign-in: a state where it is missing is a sign-in page. |
 | `app.auth.signInUrlPattern` | none | A regular expression for sign-in URLs the built-in check misses. |

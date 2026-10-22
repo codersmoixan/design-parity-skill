@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Onboarding: `check` (the preflight every pass runs first: what is ready, and only the
 // questions still open), `apply` (the answers, written into design-qa.config.json) and
-// `save-session` (the person signs in in a browser window; the session is saved outside
-// the repository). The logic lives in lib/setup.mjs.
+// `save-session` (the person signs in in a browser window; the session is saved under
+// qa/ui/.auth/, gitignored). The logic lives in lib/setup.mjs.
 //
 // Like doctor.mjs, this file checks the Node version before loading anything: the shared
 // helpers need a newer Node (util.parseArgs). Keep it free of static imports and of newer
