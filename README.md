@@ -1,4 +1,4 @@
-# ui-quality-testing
+# design-parity
 
 [中文](README.zh-CN.md)
 
@@ -27,7 +27,7 @@ The verdict is one of `PASS`, `REVIEW`, `FAIL`, or `INCOMPLETE`. `INCOMPLETE` me
 Say which design and page to compare. These requests use this skill:
 
 ```text
-Use ui-quality-testing to compare this page with the design.
+Use design-parity to compare this page with the design.
 Design: https://www.figma.com/design/...
 Page: https://preview.example.com/home
 ```
@@ -64,7 +64,7 @@ The page may be local, a preview, or a staging URL.
 **Default: one page only.** With one Figma frame URL (with `node-id`) and one app URL, only that **linked frame** is fetched. Sibling frames on the same Figma page (PLP, Cart, and so on) are not pulled.
 
 ```text
-/ui-quality-testing Compare this page with the design.
+/design-parity Compare this page with the design.
 Design: https://www.figma.com/design/...?node-id=373-79410
 Page: https://www.clibee.global/pl_en
 ```
@@ -72,7 +72,7 @@ Page: https://www.clibee.global/pl_en
 **To fetch sibling frames for several app routes**, say multi-screen / full site, and map each screen to a URL:
 
 ```text
-/ui-quality-testing Full-site design QA (multi-screen).
+/design-parity Full-site design QA (multi-screen).
 Design: https://www.figma.com/design/...?node-id=... (page or section)
 Use --multi-screen to fetch sibling frames.
 
@@ -86,7 +86,7 @@ Screen → URL:
 Or limit to a few screens and say to ignore the rest:
 
 ```text
-/ui-quality-testing-skill Multi-screen QA
+/design-parity Multi-screen QA
 Design: https://www.figma.com/design/v0c07HsRVOccvCXSTcWGpW/Clibee?node-id=373-79410&m=dev
   - Home → http://localhost:3000/pl_en
   - Product detail → http://localhost:3000/pl_en/pl-ea809.html
@@ -161,7 +161,7 @@ Start
 ## Layout
 
 ```text
-ui-quality-testing/
+design-parity/
 ├── SKILL.md                 Instructions for the agent (merged UI QA + design-qa procedure)
 ├── README.md                This file
 ├── README.zh-CN.md          Chinese

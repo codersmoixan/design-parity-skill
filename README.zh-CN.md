@@ -1,4 +1,4 @@
-# ui-quality-testing
+# design-parity
 
 [English](README.md)
 
@@ -27,7 +27,7 @@
 在对话里直接说明要核对的设计和页面。下面几种说法都会用到这个 skill：
 
 ```text
-用 ui-quality-testing 对照这个页面和设计稿。
+用 design-parity 对照这个页面和设计稿。
 设计：https://www.figma.com/design/...
 页面：https://preview.example.com/home
 ```
@@ -64,7 +64,7 @@
 **默认：只测某一个页面。** 给一个带 `node-id` 的 Figma 帧链接 + 一个页面 URL 时，只拉取**链接里的那一帧**，不会拉取 Figma 同页旁的其它页面帧（PLP、Cart 等）。
 
 ```text
-/ui-quality-testing 对照这个页面和设计稿。
+/design-parity 对照这个页面和设计稿。
 设计：https://www.figma.com/design/...?node-id=373-79410
 页面：https://www.clibee.global/pl_en
 ```
@@ -72,7 +72,7 @@
 **需要拉同页其它帧做多路由对照时**，在提示词里写明「多屏 / 整站 / multi-screen」，并尽量给出每个屏对应的页面 URL：
 
 ```text
-/ui-quality-testing 对照整站设计（多屏）。
+/design-parity 对照整站设计（多屏）。
 设计：https://www.figma.com/design/...?node-id=...（页面或 section 节点）
 请用 --multi-screen 拉取同页各帧。
 
@@ -86,7 +86,7 @@
 也可以只选几屏，并写明「其它帧忽略」：
 
 ```text
-/ui-quality-testing-skill 多屏测试
+/design-parity 多屏测试
 设计：https://www.figma.com/design/v0c07HsRVOccvCXSTcWGpW/Clibee?node-id=373-79410&m=dev
   - 首页 → http://localhost:3000/pl_en
   - 产品详情 → http://localhost:3000/pl_en/pl-ea809.html
@@ -161,7 +161,7 @@
 ## 目录
 
 ```text
-ui-quality-testing/
+design-parity/
 ├── SKILL.md                 给代理的执行说明（已合并原 design-qa 步骤）
 ├── README.md                英文说明
 ├── README.zh-CN.md          本说明

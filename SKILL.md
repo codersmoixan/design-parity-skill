@@ -1,5 +1,5 @@
 ---
-name: ui-quality-testing
+name: design-parity
 description: >
   Checks a rendered webpage against its design for components, tokens,
   typography, color, spacing, sizing, radii, borders, shadows, icons, layer
@@ -8,15 +8,16 @@ description: >
   focus) against Figma, a Figma prototype, or a coded prototype (Figma Make,
   Framer, v0, Lovable, HTML, localhost). Builds an interactive HTML report and
   fix plan; fixes code; remembers dismissals; runs in CI. Use when the user
-  asks for webpage design QA, visual QA, design parity, or to compare styles,
-  spacing, or copy with a design; says make it match Figma or the prototype;
-  shares a figma.com or prototype URL to check an app, preview, or staging URL;
-  gives a ticket key to verify or check; pastes a message that starts with
-  "Apply my design QA review"; or asks to backfill the design after parity.
+  asks for design-parity, webpage design QA, visual QA, design parity, or to
+  compare styles, spacing, or copy with a design; says make it match Figma or
+  the prototype; shares a figma.com or prototype URL to check an app, preview,
+  or staging URL; gives a ticket key to verify or check; pastes a message that
+  starts with "Apply my design QA review"; or asks to backfill the design after
+  parity. Also trigger on /design-parity.
 argument-hint: <figma-url | prototype-url | TICKET-KEY | surface> [--url <app-url>] [--prototype <url>] [--mode audit|fix|ci] [--top N] [--states <list>] | apply <slug> | triage <slug> --fix <ids> | dismiss <slug> | backfill <slug>
 ---
 
-# UI Quality Testing
+# Design Parity
 
 Compare a built page with its design. The design is the source of truth. Data values may differ. Components, tokens, typography, color, spacing, sizing, radii, borders, shadows, icons, layer order, copy, designed states, and motion must match.
 

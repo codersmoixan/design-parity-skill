@@ -1,7 +1,7 @@
 {
-  "name": "ui-quality-testing",
+  "name": "design-parity",
   "version": "1.0.0",
-  "description": "UI quality / design→code parity QA for Cursor (based on design-qa 0.2.3): capture, compare, pixel diff, design-system audit, report. Local forks: linked-frame default, optional multi-screen, qa/ui artifacts.",
+  "description": "Design→code parity QA for Cursor (based on design-qa 0.2.3): capture, compare, pixel diff, design-system audit, report. Local forks: linked-frame default, optional multi-screen, qa/ui artifacts.",
   "type": "module",
   "license": "MIT",
   "private": true,
