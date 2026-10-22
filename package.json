@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/codersmoixan/ui-quality-testing-skill.git"
+    "url": "https://github.com/codersmoixan/design-parity-skill.git"
   },
   "scripts": {
     "doctor": "node scripts/doctor.mjs"
