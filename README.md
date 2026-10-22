@@ -83,7 +83,18 @@ Screen → URL:
 (Skip or CANNOT_VERIFY frames with no URL.)
 ```
 
-Or limit to a few screens and ignore the rest. Without “multi-screen”, the pass stays single-page.
+Or limit to a few screens and say to ignore the rest:
+
+```text
+/ui-quality-testing-skill Multi-screen QA
+Design: https://www.figma.com/design/v0c07HsRVOccvCXSTcWGpW/Clibee?node-id=373-79410&m=dev
+  - Home → http://localhost:3000/pl_en
+  - Product detail → http://localhost:3000/pl_en/pl-ea809.html
+  - Cart → http://localhost:3000/pl_en/cart
+Ignore other frames.
+```
+
+The agent uses `--multi-screen` for sibling frames, maps only the listed screens to routes, and ignores the rest in `frame-map.json` (e.g. keep Homepage / PDP-Not login / Cart only). Without “multi-screen”, the pass stays single-page.
 
 ## Report language (report.html)
 

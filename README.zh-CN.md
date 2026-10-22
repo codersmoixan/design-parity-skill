@@ -83,18 +83,18 @@
 （没有 URL 的帧先跳过或标 CANNOT_VERIFY）
 ```
 
-也可以只选几屏：
+也可以只选几屏，并写明「其它帧忽略」：
 
 ```text
-/ui-quality-testing 除 Homepage 外，还要测 PLP 和 Cart。请 multi-screen。
-设计：https://www.figma.com/design/...?node-id=...
-- Homepage → https://.../home
-- PLP → https://.../plp
-- Cart → https://.../cart
-其它帧 ignore。
+/ui-quality-testing-skill 多屏测试
+设计：https://www.figma.com/design/v0c07HsRVOccvCXSTcWGpW/Clibee?node-id=373-79410&m=dev
+  - 首页 → http://localhost:3000/pl_en
+  - 产品详情 → http://localhost:3000/pl_en/pl-ea809.html
+  - 购物车 → http://localhost:3000/pl_en/cart
+其它帧忽略。
 ```
 
-没有写「多屏 / multi-screen」时，一律按单页处理。
+代理会用 `--multi-screen` 拉取同页旁帧，再按你列出的屏做路由对照；未列出的帧写入 `frame-map.json` 并 ignore（例如只保留 Homepage / PDP-Not login / Cart）。没有写「多屏 / multi-screen」时，一律按单页处理。
 
 ## 报告语言（report.html）
 
