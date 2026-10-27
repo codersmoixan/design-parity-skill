@@ -43,6 +43,8 @@ Do not change: `ref`, ledger/severity/resolution enums, selectors, token names, 
 
 One finding per divergence (one element, one property, one state).
 
+**Mixed Figma text colours.** When the worklist shows `mixed-text-styles`, or design copy is one TEXT layer while the app splits a link (`<a>`) out of the sentence: compare the **link run** and the **body run** separately (Figma `textRuns` / character overrides). A PASS on the node's default fill does not clear a wrong link colour. File a `style` finding for the run that differs (expected token from that run, e.g. `primary-brown` on "Register here !").
+
 ## Severity
 
 | Severity | Use for |

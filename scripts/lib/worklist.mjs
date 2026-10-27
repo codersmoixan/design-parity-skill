@@ -18,6 +18,7 @@ import path from 'node:path';
 import { assertInsideDir, CliError, displayPath, oneLine, scriptCommand, shellArg, writeFileAtomic, writeJson, writeText } from './args.mjs';
 import { colorDifference, parseColor } from './compare.mjs';
 import { importDependency } from './deps.mjs';
+import { textStyleRuns } from './figma-spec.mjs';
 import { composePanels, createPng, cropPng, decodePng, encodePng, scalePng, strokeRect, LABEL_HEIGHT } from './png.mjs';
 import { writeComparisonReview } from './comparison-review.mjs';
 import { normaliseMask, scaleOf, structuralRegions } from '../diff.mjs';
@@ -492,6 +493,21 @@ export function nodesFromSpec(spec, nodeId, { includeRoot = false } = {}) {
     const text = typeof l.characters === 'string' && l.characters.trim() ? l.characters : null;
     const p = String(l.path ?? l.name ?? '');
     pathCount.set(p, (pathCount.get(p) ?? 0) + 1);
+    const rect = { x: Math.round(b.x - ox), y: Math.round(b.y - oy), w: Math.round(b.width), h: Math.round(b.height) };
+    // Prefer precomputed textRuns from flattenLayers; recompute when character overrides are present.
+    let mixedFlag = Boolean(l.mixedTextStyles);
+    let unknownMixed = Boolean(l.mixedTextStylesUnknown);
+    let runList = Array.isArray(l.textRuns) ? l.textRuns : null;
+    if (l.type === 'TEXT' && (!runList || !mixedFlag)) {
+      const tr = textStyleRuns(l);
+      if (tr?.runs?.length) runList = tr.runs;
+      if (tr?.mixed) mixedFlag = true;
+      if (tr?.unknownMixed) unknownMixed = true;
+    }
+    const mixedRuns = mixedFlag && Array.isArray(runList) ? runList.filter((r) => isObj(r) && String(r.text ?? '').trim()) : [];
+    // Mixed character fills (a brown link inside slate body copy): do not treat the node fill
+    // as the only design colour — emit one design leaf per non-empty run so text pairing works.
+    const ownText = Boolean(text) && mixedRuns.length <= 1;
     nodes.push({
       side: 'design',
       i: nodes.length,
@@ -503,16 +519,75 @@ export function nodesFromSpec(spec, nodeId, { includeRoot = false } = {}) {
       text,
       textFrom: text ? 'characters' : null,
       textKind: 'visible',
-      own: Boolean(text),
+      own: ownText,
+      mixedTextStyles: mixedFlag,
+      mixedTextStylesUnknown: unknownMixed,
       instance: l.type === 'INSTANCE' || l.type === 'COMPONENT',
       component: typeof l.componentName === 'string' ? l.componentName : null,
-      rect: { x: Math.round(b.x - ox), y: Math.round(b.y - oy), w: Math.round(b.width), h: Math.round(b.height) },
+      rect,
       vis: null,
       painted: Boolean(values['background-color'] || values['border-top-width'] || l.type === 'INSTANCE' || l.type === 'RECTANGLE' || l.type === 'VECTOR' || l.type === 'ELLIPSE'),
       props: values,
       vars: tokens,
       depth: depth - baseDepth,
     });
+    if (mixedRuns.length > 1 && withValues) {
+      const nChars = Math.max(1, String(l.characters ?? '').length);
+      const nameOf = (id) => {
+        if (!id) return null;
+        const vars = spec?.variables?.variables ?? spec?.variables?.meta?.variables ?? spec?.variables;
+        const entry = isObj(vars) ? vars[id] : null;
+        return typeof entry?.name === 'string' ? entry.name : String(id);
+      };
+      for (const run of mixedRuns) {
+        const runText = String(run.text).trim();
+        const start = Number(run.start) || 0;
+        const end = Number(run.end) || start;
+        const frac0 = start / nChars;
+        const frac1 = Math.max(frac0, end / nChars);
+        const runValues = {};
+        if (run.color) runValues.color = run.color;
+        const st = isObj(run.style) ? run.style : null;
+        if (st) {
+          if (st.fontFamily) runValues['font-family'] = String(st.fontFamily);
+          if (Number.isFinite(st.fontSize)) runValues['font-size'] = `${st.fontSize}px`;
+          if (Number.isFinite(st.fontWeight)) runValues['font-weight'] = String(st.fontWeight);
+          if (Number.isFinite(st.lineHeightPx)) runValues['line-height'] = `${round2(st.lineHeightPx)}px`;
+          if (Number.isFinite(st.letterSpacing)) runValues['letter-spacing'] = `${round2(st.letterSpacing)}px`;
+        }
+        const runTokens = {};
+        const fillTok = nameOf(run.fillTokenId);
+        if (fillTok && runValues.color) runTokens.color = fillTok;
+        nodes.push({
+          side: 'design',
+          i: nodes.length,
+          id: `${l.id}#t${start}-${end}`,
+          label: `TEXT-RUN ${q(runText, 40)}`,
+          name: String(l.name ?? ''),
+          path: `${p}#t${start}-${end}`,
+          type: 'TEXT',
+          text: runText,
+          textFrom: 'characters',
+          textKind: 'visible',
+          own: true,
+          mixedTextRun: true,
+          parentTextId: String(l.id ?? ''),
+          instance: false,
+          component: null,
+          rect: {
+            x: Math.round(rect.x + frac0 * rect.w),
+            y: rect.y,
+            w: Math.max(1, Math.round((frac1 - frac0) * rect.w)),
+            h: rect.h,
+          },
+          vis: null,
+          painted: false,
+          props: runValues,
+          vars: runTokens,
+          depth: depth - baseDepth + 1,
+        });
+      }
+    }
   }
   for (const n of nodes) {
     n.vis = n.rect;
@@ -1413,6 +1488,18 @@ export function describeRegion(item, ctx) {
     context.push({ kind: 'faint', text: 'low-contrast difference (a background, border or shade slightly off): check the colours with inspect.mjs' });
   }
   if (ctx.design?.note && !ctx.designNodes.length) context.push({ kind: 'no-layers', text: clip(ctx.design.note, 160) });
+  // Mixed Figma text fills in this region: node-level colour alone is not the design contract.
+  const mixedHere = [...designAll, ...dText].filter((n) => n.mixedTextStyles || n.mixedTextRun || n.mixedTextStylesUnknown);
+  if (mixedHere.length) {
+    const unknown = mixedHere.some((n) => n.mixedTextStylesUnknown);
+    const sample = mixedHere.find((n) => n.parentTextId || n.mixedTextStyles)?.parentTextId || mixedHere[0]?.id || mixedHere[0]?.label;
+    context.push({
+      kind: 'mixed-text-styles',
+      text: unknown
+        ? `mixed Figma text colours on ${clip(String(sample), 40)} (textRangeFills > 1) but character overrides were not in the spec: re-fetch design, then compare each run — never treat the node fill as the only design colour`
+        : `mixed Figma text colours on ${clip(String(sample), 40)}: compare each text run (link vs body) separately; a single node fill is not the whole contract`,
+    });
+  }
 
   // Many hints of one kind (a column of values in 20 rows): one line with the first example.
   const group = (list) => {
@@ -1962,7 +2049,7 @@ export function buildWorklist(dir, options = {}) {
   return { data, md };
 }
 
-const ACTIONABLE = new Set(['text-differs', 'text-only-design', 'text-only-app', 'value', 'size', 'only-design', 'only-app', 'visual', 'audit']);
+const ACTIONABLE = new Set(['text-differs', 'text-only-design', 'text-only-app', 'value', 'size', 'only-design', 'only-app', 'visual', 'audit', 'mixed-text-styles']);
 /**
  * Priority within a state: 2 for items whose hints name a concrete difference (copy, value,
  * size, presence, an added or missing section with content), 1 for items without such a hint,

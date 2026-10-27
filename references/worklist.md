@@ -35,6 +35,7 @@ Inspect the image and exact values before deciding.
    | `ds-audit … covers …` | When that candidate is the whole difference, paste the rejection the hint prints into `rejected`. It is complete (`reason`, `coveredBy`, `detail`); edit the `detail` if you know more. |
    | `clipped` | Part of the content sits in a scroll panel: check it with `inspect.mjs`. |
    | `faint` | A shade is slightly off: read both colours with `inspect.mjs`. |
+   | `mixed-text-styles` | One Figma TEXT node has more than one fill (e.g. body slate + link brown). Compare each run / the matching app node (`<a>` vs surrounding copy); never accept a match on the node-level fill alone. |
    | `design values are not in the spec` (Figma MCP) | Read the value with `inspect.mjs` and `get_design_context`. Never guess a value from pixels. |
 
 2. **Read the `design:` and `app:` lines** for every item. Compare names, texts and values. `design: no matching design element here (only the page container…)` means nothing on the design side matches this area element by element: judge from the image.

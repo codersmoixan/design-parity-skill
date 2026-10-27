@@ -7,10 +7,91 @@ const LAYER_KEYS = [
   'absoluteBoundingBox', 'visible', 'fills', 'strokes', 'strokeWeight', 'cornerRadius', 'rectangleCornerRadii',
   'effects', 'opacity', 'layoutMode', 'primaryAxisAlignItems', 'counterAxisAlignItems', 'paddingLeft',
   'paddingRight', 'paddingTop', 'paddingBottom', 'itemSpacing', 'layoutSizingHorizontal', 'layoutSizingVertical',
-  'style', 'characters', 'componentId', 'componentName', 'variantProperties', 'boundVariables', 'reactions',
-  'annotations', 'description', 'transitionNodeID', 'transitionDuration', 'transitionEasing', 'flowStartingPoints',
+  'style', 'characters', 'characterStyleOverrides', 'styleOverrideTable', 'componentId', 'componentName',
+  'variantProperties', 'boundVariables', 'reactions', 'annotations', 'description', 'transitionNodeID',
+  'transitionDuration', 'transitionEasing', 'flowStartingPoints',
 ];
 const STYLE_KEYS = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeightPx', 'letterSpacing', 'textCase', 'textAlignHorizontal'];
+
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+const figmaColor = (c, opacity = 1) => {
+  if (!isObj(c)) return null;
+  const ch = (v) => Math.max(0, Math.min(255, Math.round((Number(v) || 0) * 255)));
+  const a = Math.round(((c.a ?? 1) * (opacity ?? 1)) * 100) / 100;
+  return `rgba(${ch(c.r)}, ${ch(c.g)}, ${ch(c.b)}, ${a})`;
+};
+
+const solidPaint = (paints) => {
+  const visible = Array.isArray(paints) ? paints.filter((p) => isObj(p) && p.visible !== false) : [];
+  return visible.length === 1 && visible[0].type === 'SOLID' && isObj(visible[0].color) ? visible[0] : null;
+};
+
+/**
+ * Character-level style runs on a Figma TEXT layer (characterStyleOverrides + styleOverrideTable).
+ * Mixed fills (a link colour inside a sentence) live here — the node-level `fills` alone is wrong.
+ * → { mixed, runs: [{ start, end, text, overrideKey, color, style, fillTokenId }], unknownMixed } | null.
+ */
+export function textStyleRuns(layer) {
+  if (!layer || layer.type !== 'TEXT' || typeof layer.characters !== 'string') return null;
+  const chars = layer.characters;
+  if (!chars.length) return null;
+  const overrides = Array.isArray(layer.characterStyleOverrides) ? layer.characterStyleOverrides : [];
+  const table = isObj(layer.styleOverrideTable) ? layer.styleOverrideTable : {};
+  const rangeFillVars = Array.isArray(layer.boundVariables?.textRangeFills) ? layer.boundVariables.textRangeFills : [];
+  const hasOverrides = overrides.some((k) => Number(k) > 0) && Object.keys(table).length > 0;
+  // Spec kept textRangeFills but dropped character overrides (older fetch): still flag mixed.
+  if (!hasOverrides) {
+    if (rangeFillVars.length > 1) return { mixed: true, unknownMixed: true, runs: [] };
+    return null;
+  }
+  const idxAt = (i) => {
+    if (i >= overrides.length) return 0;
+    const n = Number(overrides[i]);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const baseStyle = isObj(layer.style) ? layer.style : {};
+  const baseFills = layer.fills;
+  const baseFillToken = Array.isArray(layer.boundVariables?.fills)
+    ? layer.boundVariables.fills[0]?.id
+    : layer.boundVariables?.fills?.id ?? null;
+  const runs = [];
+  let start = 0;
+  let cur = idxAt(0);
+  const pushRun = (end) => {
+    const override = cur === 0 ? null : table[String(cur)] ?? table[cur] ?? null;
+    const fills = override && Array.isArray(override.fills) ? override.fills : baseFills;
+    const fill = solidPaint(fills);
+    const style = { ...baseStyle };
+    if (override) {
+      for (const k of STYLE_KEYS) if (override[k] !== undefined) style[k] = override[k];
+    }
+    const fillTokenId =
+      (override && (Array.isArray(override.boundVariables?.fills) ? override.boundVariables.fills[0]?.id : override.boundVariables?.fills?.id)) ||
+      (cur === 0 ? baseFillToken : null) ||
+      null;
+    runs.push({
+      start,
+      end,
+      text: chars.slice(start, end),
+      overrideKey: cur,
+      color: fill ? figmaColor(fill.color, fill.opacity) : null,
+      style: pickStyle(style) ?? style,
+      fillTokenId,
+    });
+  };
+  for (let i = 1; i <= chars.length; i++) {
+    const next = i < chars.length ? idxAt(i) : null;
+    if (i === chars.length || next !== cur) {
+      pushRun(i);
+      start = i;
+      cur = next;
+    }
+  }
+  const colors = [...new Set(runs.map((r) => r.color).filter(Boolean))];
+  const mixed = colors.length > 1 || runs.some((r) => r.overrideKey !== 0);
+  return mixed ? { mixed: true, unknownMixed: false, runs } : { mixed: false, unknownMixed: false, runs };
+}
 
 /** "State=Hover, Size=Large" → { State: "Hover", Size: "Large" }; null when not variant-shaped. */
 export function parseVariantName(name) {
@@ -72,6 +153,12 @@ export function flattenLayers(root, { components = {}, componentSets = {} } = {}
     for (const key of LAYER_KEYS) {
       const value = Object.prototype.hasOwnProperty.call(derived, key) ? derived[key] : node[key];
       if (value !== undefined && value !== null && !(key === 'description' && value === '')) layer[key] = value;
+    }
+    if (layer.type === 'TEXT') {
+      const tr = textStyleRuns(layer);
+      if (tr?.runs?.length) layer.textRuns = tr.runs;
+      if (tr?.mixed) layer.mixedTextStyles = true;
+      if (tr?.unknownMixed) layer.mixedTextStylesUnknown = true;
     }
     layers.push(layer);
     for (const child of node.children || []) walk(child, node, layerPath, depth + 1);

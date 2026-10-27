@@ -206,6 +206,7 @@ It builds `report.json` (earlier dismissals re-applied), renders `report.html` a
 - After review Send: always run `apply-decisions` Next in the same turn (see §6).
 - After a fix-loop recapture: do **not** rewrite `expected`/`actual`/`title`/`ref`/`pin` of findings the person dismissed — mark verified fixes `PASS` surgically (references/fix-loop.md). Dismissals re-apply by place fingerprint (and `ref` when logged), not by exact prose.
 - After that recapture, `pass.mjs report` restarts the review server on its own and prints a fresh `Review open:` link — give it to the person so they can keep viewing the updated report. Do not wait for another Send unless they send again (references/fix-loop.md, references/review.md).
+- Mixed Figma text fills (one TEXT node, several colours — e.g. a brown link inside slate copy): never treat the node-level fill as the only design colour. Follow `mixed-text-styles` worklist hints and file per run (references/figma-extraction.md, references/filing.md).
 
 ## Keeping cost down
 

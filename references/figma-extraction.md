@@ -21,6 +21,7 @@ What `pass.mjs evidence` needs:
 5. Read only. Never write to the Figma file in step 1.
 6. Save every tool result to a file exactly as returned, before you use it. Evidence that exists only in the conversation does not count.
 7. A failing rung is a `pass.degradations` entry in `findings.json` plus the next rung, never a smaller scope.
+8. **Mixed text fills (character styles).** A single Figma `TEXT` node may colour a link differently from the surrounding sentence (`characterStyleOverrides` + `styleOverrideTable`, surfaced as `textRuns` / `mixedTextStyles` on the layer). Never treat the node's top-level `fills` as the only design colour for that string. REST fetch keeps those fields; the worklist emits one design leaf per non-empty run and a `mixed-text-styles` hint. Re-fetch if an older spec has `boundVariables.textRangeFills` length > 1 but no `characterStyleOverrides`. File each differing run (link colour vs body) as its own style finding when the app disagrees.
 
 ## Links and node ids
 
