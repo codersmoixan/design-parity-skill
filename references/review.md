@@ -22,7 +22,8 @@ It is long-running: start it in the background, or with your longest timeout. It
 
 - Before repeating a link, run `node scripts/review.mjs --status --report <dir>/report.json`: a link to a closed server is dead, and only the output that started a server shows its token.
 - Stop your own server with `node scripts/review.mjs --stop --report <dir>/report.json --run <id>` (another run's server is never stopped); `--replace` stops it and starts a new one. Never `pkill` or kill by pattern.
-- After a re-render, ask the reviewer to reload: a rebuilt report refuses Send until the page is reloaded.
+- After a re-render while a server is still open, ask the reviewer to reload: a rebuilt report refuses Send until the page is reloaded.
+- After the fix loop recaptures and `pass.mjs report` rebuilds (decisions already applied): the report stage **restarts the review server automatically** and prints a new `Review open:` link so the person can keep viewing. That reopen is for viewing — do not block waiting for another Send unless they send again. `pass.mjs status` treats that server as post-fix viewing, not as an open first review.
 - No browser here (SSH, cloud, a CI artifact): give the path of `report.html` and ask the person to use "Copy for your agent" and paste the message into chat.
 - If you are not notified when the command exits but `<dir>/decisions.json` exists (or the person says they sent it), run `apply-decisions` / `pass.mjs status` — do not idle waiting for another chat message.
 

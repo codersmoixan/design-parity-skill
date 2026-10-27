@@ -6,7 +6,7 @@
 // <dir>/pass.json and redone only when its inputs changed. Child scripts write their
 // full output to <dir>/logs/<step>.log; the agent reads a short summary and one Next: line.
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { CliError, displayPath, oneLine, parseCli, readJsonFile, runMain, scriptCommand, skillScriptsDir, toNumber, usageError, writeJson, writeText } from './lib/args.mjs';
 import { figmaDesignUrl } from './lib/figma-url.mjs';
@@ -50,6 +50,7 @@ import {
   writePass as writePassFile,
 } from './lib/pass.mjs';
 import { applyAnswers, ensureUiProjectDir, looksSecret, overlayProjectEnv, reportOutDir, resolveDefaultConfigPath } from './lib/setup.mjs';
+import { looksLikeSignInPath } from './lib/capture-helpers.mjs';
 import { designSystemNotChecked, explainVerdict, scorecardHeadline } from './lib/ranking.mjs';
 import { configFingerprint } from './lib/build-report.mjs';
 import { ANNOTATIONS_FILE } from './lib/annotations.mjs';
@@ -142,7 +143,8 @@ report    build-report.mjs (findings.json + evidence → report.json; it re-appl
           dismissals) → render-report.mjs (--recompute --write-back --embed-images, the fix
           plan, the backfill plan when there are items) → validate.mjs. Prints the verdict,
           match, findings settled, states verified, whole-page coverage, counts and the review command
-          (once the review's decisions are applied: status, for the fix loop).
+          (once the review's decisions are applied: status, for the fix loop). After a fix-loop
+          recapture+rebuild it restarts the review server for viewing and prints Review open:.
           --check only checks findings.json (build-report.mjs --check: every audit candidate and
           compare FAIL row still to decide, and every annotation from the review still to file,
           one line each). The report is stale when findings.json or <dir>/annotations.json (the
@@ -158,7 +160,8 @@ status    What is done, what is stale, and the single next command, to the run h
           (--run; anyone else is told to start their own pass). Use it when unsure. After
           applied decisions: annotations from the review still to file (Do:) and the rebuild,
           then the fix-now set to fix and evidence --recapture; once re-checked and still open,
-          Do: fix and check again or finish, Next: finish.
+          Do: fix and check again or finish, Next: finish. A review server restarted after that
+          rebuild is treated as post-fix viewing (does not block waiting for another Send).
 finish    run.mjs finish; says how to stop your own review server when one is registered.
           Finishing a valid report that was never reviewed records the review as skipped (the
           recommended split stands): report prints this command as "If the person will not
@@ -1042,6 +1045,114 @@ function appUrlFor(ctx, screen, plan) {
 /** setup.mjs save-session for this pass's config and app address. */
 const saveSessionCmd = (ctx) => scriptCmd('setup.mjs', 'save-session', ...(ctx.configFile ? ['--config', displayPath(ctx.configFile)] : []), ...urlFlag('url', passUrl(ctx)));
 
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/**
+ * After a fix-loop rebuild, the review server from Send is gone. Restart it detached so the
+ * person can keep viewing the updated report without blocking this stage on another Send.
+ * → { url, port, error }.
+ */
+async function restartReviewServer(ctx) {
+  const reportFile = path.join(ctx.dir, 'report.json');
+  const reportArg = `${ctx.rel}/report.json`;
+  const stop = await runChild(ctx, 'review.mjs', ['--stop', '--report', reportFile, '--run', ctx.runId, '--json'], { log: 'review-stop-before-reopen' });
+  if (stop.missing) return { url: null, port: null, error: missingScript('review.mjs') };
+  const logDir = path.join(ctx.dir, 'logs');
+  mkdirSync(logDir, { recursive: true });
+  const logFile = path.join(logDir, 'review-reopen.log');
+  let fd;
+  try {
+    fd = openSync(logFile, 'w');
+  } catch (err) {
+    return { url: null, port: null, error: `could not write ${displayPath(logFile)}: ${err.message}` };
+  }
+  const args = [scriptPath('review.mjs'), '--report', reportFile, '--run', String(ctx.runId), '--replace'];
+  let child;
+  try {
+    child = spawn(process.execPath, args, {
+      detached: true,
+      stdio: ['ignore', fd, fd],
+      cwd: process.cwd(),
+      env: { ...process.env, ...(ctx.runId ? { DESIGN_QA_RUN_ID: ctx.runId } : {}) },
+    });
+  } catch (err) {
+    try {
+      closeSync(fd);
+    } catch {
+      /* ignore */
+    }
+    return { url: null, port: null, error: err.message };
+  }
+  try {
+    closeSync(fd);
+  } catch {
+    /* ignore */
+  }
+  child.unref();
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    await sleep(150);
+    let text = '';
+    try {
+      text = readFileSync(logFile, 'utf8');
+    } catch {
+      continue;
+    }
+    const m = text.match(/Review open:\s*(http:\/\/127\.0\.0\.1:\d+\/\?t=[a-f0-9]+)/i);
+    if (m) {
+      const port = Number((m[1].match(/:(\d+)\//) || [])[1]) || null;
+      return { url: m[1], port, error: null };
+    }
+    if (child.exitCode != null && child.exitCode !== 0) {
+      return { url: null, port: null, error: oneLine(text.split('\n').filter(Boolean).slice(-3).join('; ') || `review.mjs exited ${child.exitCode}`) };
+    }
+  }
+  const reg = readReviewRegistration(ctx.dir);
+  if (reg && !reg.invalid && registrationAlive(reg)) {
+    return {
+      url: null,
+      port: reg.port,
+      error: `review server started on port ${reg.port}, but the Review open: line was not captured; check ${displayPath(logFile)} or run: ${scriptCmd('review.mjs', '--status', '--report', reportArg)}`,
+    };
+  }
+  return { url: null, port: null, error: `review server did not become ready in time; see ${displayPath(logFile)} or run: ${passCmd(ctx, 'review')}` };
+}
+
+/**
+ * Evidence was recaptured after decisions were applied (fix-loop re-verify), so a report
+ * rebuild should reopen the review server for viewing.
+ */
+function evidenceAfterDecisions(dir, pass) {
+  const applied = path.join(dir, 'decisions.applied.json');
+  const evAt = pass?.stages?.evidence?.at;
+  if (!existsSync(applied) || !evAt) return false;
+  try {
+    return Date.parse(evAt) > statSync(applied).mtimeMs;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Exit-6 Next/Do: auth-surface target (login/register/forgot) → allowSignIn, not save-session;
+ * business page kicked to login → save-session. Detects from planned URL and/or capture stderr.
+ */
+function signInWallNext(ctx, { plannedUrl = null, stderr = '' } = {}) {
+  const authTarget =
+    /authentication page \(sign-in, register, forgot\/reset/i.test(String(stderr || '')) ||
+    (plannedUrl && looksLikeSignInPath(plannedUrl));
+  if (authTarget) {
+    return nx(
+      passCmd(ctx, 'evidence'),
+      'This capture targeted an authentication page (login / register / forgot), not a missing session. Set "allowSignIn": true on that state\'s driver (unusual route names only — common auth paths are auto-recognized when the page stays put), then run Next. Do not run save-session for this.',
+    );
+  }
+  return nx(
+    `${saveSessionCmd(ctx)} && ${passCmd(ctx, 'evidence')}`,
+    'Tell the person the app needs a signed-in session: the next command opens a browser window where they sign in themselves; you type nothing.',
+  );
+}
+
 /** The note when a local target's code changes cannot be seen (shown once by evidence and status). */
 const CODE_BLIND = (why) =>
   `Cannot tell whether the code changed (${why}): captures are not redone after code changes on their own; use --recapture after changing code. ` +
@@ -1377,14 +1488,22 @@ async function evidence(o, { dryRun = false } = {}) {
       if (r.code === 6) {
         const m = readJsonOrNull(path.join(base, manifestName));
         recordCapture(pass, screen, m, base, side, todo);
+        const authSurface = Boolean(url && looksLikeSignInPath(url)) || /authentication page \(sign-in, register, forgot\/reset/i.test(String(r.stderr || r.stdout || ''));
+        const wallNext = signInWallNext(ctx, { plannedUrl: url, stderr: r.stderr || r.stdout || '' });
         return {
           status: 'input',
           code: 6,
           log: r.log,
           signIn: true,
-          summary: `sign-in page at ${oneLine(m?.failure?.finalUrl ?? '')}`,
-          lines: [`  ${screen.id ?? 'the app'}: landed on a sign-in page (${oneLine(m?.failure?.detail ?? 'sign-in')}); nothing was captured from it`],
-          next: nx(`${saveSessionCmd(ctx)} && ${passCmd(ctx, 'evidence')}`, 'Tell the person the app needs a signed-in session: the next command opens a browser window where they sign in themselves; you type nothing.'),
+          summary: authSurface
+            ? `auth-surface page at ${oneLine(m?.failure?.finalUrl ?? url ?? '')}`
+            : `sign-in page at ${oneLine(m?.failure?.finalUrl ?? '')}`,
+          lines: [
+            authSurface
+              ? `  ${screen.id ?? 'the app'}: auth page flagged as a wall (${oneLine(m?.failure?.detail ?? 'sign-in')}); set allowSignIn — do not save-session`
+              : `  ${screen.id ?? 'the app'}: landed on a sign-in page (${oneLine(m?.failure?.detail ?? 'sign-in')}); nothing was captured from it`,
+          ],
+          next: wallNext,
         };
       }
       if ([2, 3, 4, 5].includes(r.code) || (r.code !== 0 && r.code !== 1)) {
@@ -1556,7 +1675,17 @@ async function evidence(o, { dryRun = false } = {}) {
       if (r.missing) return { status: 'failed', message: missingScript('capture.mjs') };
       const m = readJsonOrNull(path.join(out, 'capture.json'));
       const n = Object.values(m?.states ?? {}).filter((s) => s?.screenshot).length;
-      if (r.code === 6) return { status: 'input', code: 6, log: r.log, signIn: true, summary: 'sign-in page', lines: [], next: nx(`${saveSessionCmd(ctx)} && ${passCmd(ctx, 'evidence')}`, 'Tell the person the app needs a signed-in session: the next command opens a browser window where they sign in themselves; you type nothing.') };
+      if (r.code === 6) {
+        return {
+          status: 'input',
+          code: 6,
+          log: r.log,
+          signIn: true,
+          summary: 'sign-in page',
+          lines: [],
+          next: signInWallNext(ctx, { plannedUrl: url, stderr: r.stderr || r.stdout || '' }),
+        };
+      }
       if (r.code !== 0 && r.code !== 1) return { status: 'skipped', code: r.code, log: r.log, summary: `not captured: ${relevantLines(r.stderr, 1).join('')}` };
       return { status: 'ok', code: r.code, log: r.log, summary: `${n}/${Object.keys(states).length} captured` };
     });
@@ -1985,7 +2114,27 @@ async function report(o) {
   }
   // The review was sent and its decisions applied (this is the rebuild after them, e.g. with the
   // annotations from the review filed, or after a fix): the fix loop follows, not another review.
+  // After a fix-loop recapture + rebuild, restart the review server so the person can keep viewing.
   if (!o.review && existsSync(path.join(dir, 'decisions.applied.json')) && !existsSync(path.join(dir, 'decisions.json'))) {
+    if (evidenceAfterDecisions(dir, pass)) {
+      const reopened = await restartReviewServer(ctx);
+      if (reopened.url) {
+        L.push(`Review server restarted after the fix-loop rebuild: ${reopened.url}`);
+        L.push('Give the person that link (browser may already be open) so they can keep viewing the updated report. Do not wait for another Send unless they choose to send again.');
+      } else if (reopened.port) {
+        L.push(`Review server restarted after the fix-loop rebuild (port ${reopened.port}). ${reopened.error}`);
+      } else {
+        L.push(`Could not auto-restart the review server: ${reopened.error}`);
+        L.push(`Do: Start the review in the background so the person can view the updated report: ${passCmd(ctx, 'review')}`);
+      }
+      const openIds = triageLists(rep).fixNow.filter((x) => x.resolution === 'FIX_CODE').map((x) => x.id);
+      if (!openIds.length) {
+        L.push('Fix-now is empty after re-verify. Next finishes the pass; the review server stays open for viewing until then (finish will offer --stop).');
+        return emit(ctx, 'report', EXIT.OK, passCmd(ctx, 'finish'), { valid: true, verdict: sc.verdict ?? null, reviewReopened: Boolean(reopened.url || reopened.port) });
+      }
+      L.push(`The decisions from the review are applied; fix-now still open: ${openIds.join(', ')}. Next continues the fix loop (references/fix-loop.md).`);
+      return emit(ctx, 'report', EXIT.OK, passCmd(ctx, 'status'), { valid: true, verdict: sc.verdict ?? null, reviewReopened: Boolean(reopened.url || reopened.port) });
+    }
     L.push(`The decisions from the review are applied: the next command gives the step after this rebuild (references/fix-loop.md). To show the person this report again instead: ${passCmd(ctx, 'review')}`);
     return emit(ctx, 'report', EXIT.OK, passCmd(ctx, 'status'), { valid: true, verdict: sc.verdict ?? null });
   }
@@ -2162,15 +2311,34 @@ async function status(o) {
   if (rep.verdict === 'INCOMPLETE') return emit(ctx, 'status', EXIT.OK, nx(passCmd(ctx, 'evidence'), 'INCOMPLETE is not a result: do what the last why: line says, then run evidence and report again.'));
   const reg = readReviewRegistration(dir);
   const open = reg && !reg.invalid && registrationAlive(reg);
-  L.push(`  review    ${open ? `server open (port ${reg.port})` : existsSync(path.join(dir, 'decisions.json')) ? 'decisions received, not applied' : existsSync(path.join(dir, 'decisions.applied.json')) ? 'decisions applied' : 'not opened'}`);
-  if (existsSync(path.join(dir, 'decisions.json'))) return emit(ctx, 'status', EXIT.OK, scriptCmd('apply-decisions.mjs', '--report', `${ctx.rel}/report.json`, '--run', ctx.runId));
-  if (open) return emit(ctx, 'status', EXIT.OK, nx(scriptCmd('review.mjs', '--status', '--report', `${ctx.rel}/report.json`), 'The review is open: wait until the person clicks Send and the review command exits, then run pass.mjs status again.'));
   const applied = path.join(dir, 'decisions.applied.json');
+  const viewingAfterFix = open && evidenceAfterDecisions(dir, pass);
+  L.push(
+    `  review    ${
+      viewingAfterFix
+        ? `server open for viewing post-fix report (port ${reg.port})`
+        : open
+          ? `server open (port ${reg.port})`
+          : existsSync(path.join(dir, 'decisions.json'))
+            ? 'decisions received, not applied'
+            : existsSync(applied)
+              ? 'decisions applied'
+              : 'not opened'
+    }`,
+  );
+  if (existsSync(path.join(dir, 'decisions.json'))) return emit(ctx, 'status', EXIT.OK, scriptCmd('apply-decisions.mjs', '--report', `${ctx.rel}/report.json`, '--run', ctx.runId));
+  // A server restarted after the fix-loop rebuild is for viewing: do not block on another Send.
+  if (open && !viewingAfterFix) {
+    return emit(ctx, 'status', EXIT.OK, nx(scriptCmd('review.mjs', '--status', '--report', `${ctx.rel}/report.json`), 'The review is open: wait until the person clicks Send and the review command exits, then run pass.mjs status again.'));
+  }
   if (existsSync(applied)) {
     // After the review: fix the fix-now set (the fix loop), capture again, report again.
     const r = readJsonOrNull(reportFile) ?? {};
     const openIds = triageLists(r).fixNow.filter((x) => x.resolution === 'FIX_CODE').map((x) => x.id);
     L.push(`  fix now   ${openIds.length ? openIds.join(', ') : 'nothing open'}`);
+    if (viewingAfterFix) {
+      L.push(`  Post-fix review link is live on port ${reg.port}; give the person logs/review-reopen.log's "Review open:" URL if the browser did not open.`);
+    }
     if (!openIds.length) return emit(ctx, 'status', EXIT.OK, passCmd(ctx, 'finish'));
     // Re-checked already (evidence and the report after the decisions) and still open: the
     // agent decides; Next finishes, so following Next does not loop.

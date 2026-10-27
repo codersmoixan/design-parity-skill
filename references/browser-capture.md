@@ -10,21 +10,25 @@ When `start` or `evidence` says the app needs a signed-in session, run `Next:` e
 
 **Set `app.auth.signedInSelector`** for every app behind a sign-in (an element only the signed-in app shows, in every state: the navigation, the user menu). Without it the checks below are guesses.
 
-A sign-in page is never saved as a state. Each state is checked after it renders and after its driver; first match wins:
+A sign-in **wall** (missing session) is never saved as a state. An **auth-surface** page (the design *is* login / register / forgot / reset) is captured. Each state is checked after it renders and after its driver; first match wins:
 
-1. The driver sets `"allowSignIn": true` (a sign-out flow, QA of the sign-in screen): never a sign-in page.
-2. The final URL matches `app.auth.signInUrlPattern` and the planned URL does not: a sign-in page.
-3. A frame covering the page shows a sign-in URL, dialog or form: a sign-in page.
-4. `signedInSelector` is set: visible means never a sign-in page, whatever fields show (a change-password dialog); not visible means it is one.
-5. Otherwise, the heuristics: a "session expired" dialog; a move to a sign-in URL (a `login`, `sso`, `oauth`, `saml` path or fragment, or another host named like an identity provider); a move to a page with a password field or sign-in wording; a small page saying the session ended; a small sign-in form, including an e-mail-only form with sign-in or "Continue" wording (a magic link). HTTP 401 or 403 always counts. A page that stays on a planned sign-in URL does not.
+1. The driver sets `"allowSignIn": true` (QA of the sign-in / register / forgot screen, or a sign-out flow): never treated as a wall.
+2. The page stayed on its planned URL and that URL's path or fragment is an auth surface (`login`, `sign-in`, `register`, `signup`, `forgot`, `forgot-password`, `reset-password`, `change-password`, `sso`, `oauth`, `saml`, `auth`, …): never a wall — even when a password form or a login shell sits under a forgot-password dialog. Unusual route names still need `"allowSignIn": true`.
+3. The final URL matches `app.auth.signInUrlPattern` and the planned URL does not: a wall.
+4. A frame covering the page shows a sign-in URL, dialog or form: a wall.
+5. `signedInSelector` is set: visible means never a wall, whatever fields show (a change-password dialog on a signed-in app); not visible means it is a wall.
+6. Otherwise, the heuristics: a "session expired" dialog; a **move** to a sign-in / auth-surface URL (path or fragment, or another host named like an identity provider); a move to a page with a password field or sign-in wording; a small page saying the session ended; a small sign-in form on a non-auth planned URL, including an e-mail-only form with sign-in or "Continue" wording (a magic link). HTTP 401 or 403 always counts.
+
+**Two different exit stories — do not mix them:**
+
+| What happened | Meaning | Do |
+|---|---|---|
+| Business / app URL redirected to login (or shows a sign-in wall) | Needs a signed-in session | Get a session (`Next:` / `save-session`), capture again. A session already in use has expired: save a fresh one. |
+| Planned URL is already login / register / forgot / reset | Auth-surface target, not a missing session | Set `"allowSignIn": true` if the route name was not recognized; do **not** run `save-session` for that state. |
+| A later state is a sign-in wall | That state fails (`failure.kind: "sign-in"`), the run goes on, exit 1 | Fix its driver, or set `allowSignIn` when the design shows an auth page. |
+| A state ends on another host | Fails, even under run-wide `--allow-navigation` (same host only) | Set the state's own `"allowNavigation": true` when it is meant to leave the app: it is kept, with a warning. |
 
 With-data (else the first state) is captured first. After it passed signed in, a later state on the same host reached without a redirect is trusted: a password field there (re-authentication, change password) is not a sign-in wall.
-
-| What happened | Result | Do |
-|---|---|---|
-| With-data, or every state, is a sign-in page | Exit 6; nothing saved under that name | Get a session (`Next:`), capture again. A session already in use has expired: save a fresh one. |
-| A later state is a sign-in page | That state fails (`failure.kind: "sign-in"`), the run goes on, exit 1 | Fix its driver, or set `allowSignIn` when the design shows a sign-in page. |
-| A state ends on another host | Fails, even under run-wide `--allow-navigation` (same host only) | Set the state's own `"allowNavigation": true` when it is meant to leave the app: it is kept, with a warning. |
 
 ## Before the first live capture
 

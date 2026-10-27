@@ -1268,8 +1268,9 @@ function runNode(args, { env = process.env, timeoutMs = 60000, cwd = process.cwd
 }
 
 /**
- * A probe's exit code in plain words. 6 is always "needs a signed-in session", never
- * "unreachable"; 5 splits into "not reachable" and "answered with an HTTP error".
+ * A probe's exit code in plain words. 6 is a sign-in wall (usually "needs a signed-in
+ * session"; an auth-surface planned URL is classified as ok instead), never "unreachable";
+ * 5 splits into "not reachable" and "answered with an HTTP error".
  * → { state: ok | sign-in | unreachable | http-error | config | no-browser | error, signInNeeded, … }.
  */
 export function mapProbe(probe, { sessionUsed = null } = {}) {

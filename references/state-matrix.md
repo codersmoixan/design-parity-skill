@@ -44,7 +44,7 @@ The state matrix lists every state the design defines, how to put the app into i
 | `wait` | A selector that proves the state rendered (its data, not just the frame). |
 | `settleMs` | Wait after the action (default 250). |
 | `viewport` | `{ width, height }` for this state; must equal the state's design frame. |
-| `reducedMotion`, `allowNavigation`, `allowSignIn`, `viewportOnly` | Emulate reduced motion; allow ending on another URL; the state is meant to show a sign-in page; capture only the first screen. |
+| `reducedMotion`, `allowNavigation`, `allowSignIn`, `viewportOnly` | Emulate reduced motion; allow ending on another URL; the state is meant to show a sign-in / register / forgot page (unusual routes; common auth paths are auto-recognized when the page stays put); capture only the first screen. |
 | `source` | `"<file>:<line>"`: the state exists in code but nothing can drive it. Reported `CANNOT_VERIFY`. |
 
 A driver needs at least one of `fixture`, `query`, `mock`, `storage`, `action` or `viewport`; otherwise capture skips the state rather than save the default page under its name. Capture applies every key of a driver; the matrix's `implemented.driver` names one, in this order of precedence: `action`, `mock`, `query`, `storage`, `fixture`, `source` (a driver with only `viewport` counts as `fixture`). Full key list: `capture.mjs --help`.

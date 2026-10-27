@@ -112,7 +112,8 @@ Every finding pin, dashed crop outline, Evidence thumbnail mark, and lightbox hi
 
 ```bash
 node scripts/render-report.mjs --in <dir>/report.json --out <dir>/report.html --embed-images --run <id>
-# then restart review if a review server is open
+# if a review server is still open: ask the reviewer to reload
+# after a fix-loop rebuild, pass.mjs report restarts the server itself (new Review open: link)
 ```
 
 Paths above are under this skill’s folder; run from the repository under test with the full skill path as `pass.mjs` prints.

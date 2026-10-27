@@ -73,6 +73,8 @@ Run `commands.test` from `commands.cwd`, then each `commands.lint`. Investigate 
 
 `iteration`, `action` and `result` (`green`, `red`, or `skipped` with the reason in `action`) are required. Listing an iteration again replaces it.
 
+When evidence was recaptured after the reviewer's Send (`decisions.applied.json`), that `pass.mjs report` **automatically restarts the review server** and prints a fresh `Review open: http://127.0.0.1:<port>/?t=…` link (and usually opens the browser). Give the person that link so they can keep viewing the updated report. Do not wait for another Send unless they choose to send again. If auto-restart fails, the `Do:` line says to start `pass.mjs review` in the background.
+
 "Being updated by another design-qa run": wait and run the command again.
 
 ## 5. Repeat

@@ -323,13 +323,16 @@ export function sameLocation(planned, final) {
 // ---------------------------------------------------------------------------
 
 /**
- * Built-in sign-in URL heuristic, matched against host + path + fragment: a segment
- * named login, signin, sso, oauth, saml, authorize… (login.example.com, /auth/login,
- * #/sign-in). "/authors" or "/blogin" do not match: the word must be a whole segment part.
+ * Built-in auth-surface URL heuristic, matched against host + path + fragment: a segment
+ * named login, register, forgot-password, sso, oauth, saml, authorize… (login.example.com,
+ * /auth/login, /customer/forgot-password, #/sign-in). "/authors" or "/blogin" do not match:
+ * the word must be a whole segment part. Used both for "redirected to auth" and for
+ * "planned URL is itself an auth page" (register / forgot / reset stay on-URL).
  */
-const SIGN_IN_URL = /(^|[/._#-])(login|log-in|logon|signin|sign-in|sign_in|sso|oauth2?|openid|saml2?|authorize|auth|session\/new)([/._?#-]|$)/i;
+const AUTH_SURFACE_URL =
+  /(^|[/._#-])(login|log-in|logon|signin|sign-in|sign_in|signup|sign-up|sign_up|register|registration|sso|oauth2?|openid|saml2?|authorize|auth|session\/new|forgot|forgot-?password|password-?forgot|reset-?password|password-?reset|change-?password|password|create-?account|recover(?:y|y-password)?|passwd)([/._?#-]|$)/i;
 
-/** Host, path and fragment of a URL: where the sign-in words would be. */
+/** Host, path and fragment of a URL: where the auth-surface words would be. */
 function signInHaystack(href) {
   try {
     const u = new URL(String(href));
@@ -339,20 +342,20 @@ function signInHaystack(href) {
   }
 }
 
-/** Does the URL look like a sign-in page (built-in heuristic, host included: login.idp.example)? */
+/** Does the URL look like an auth surface (built-in heuristic, host included: login.idp.example)? */
 export function looksLikeSignInUrl(href) {
-  return SIGN_IN_URL.test(signInHaystack(href));
+  return AUTH_SURFACE_URL.test(signInHaystack(href));
 }
 
 /**
- * Does the URL's path or fragment name a sign-in page (/login, #/sign-in)? The host is left
- * out: a preview host built from a branch name (shop-git-fix-login.vercel.app) is not a
- * sign-in page, and must never switch the sign-in check off.
+ * Does the URL's path or fragment name an auth surface (/login, /register, /forgot-password,
+ * #/sign-in)? The host is left out: a preview host built from a branch name
+ * (shop-git-fix-login.vercel.app) is not a sign-in page, and must never switch the check off.
  */
 export function looksLikeSignInPath(href) {
   try {
     const u = new URL(String(href));
-    return SIGN_IN_URL.test(`${u.pathname}${u.hash}`);
+    return AUTH_SURFACE_URL.test(`${u.pathname}${u.hash}`);
   } catch {
     return false;
   }
@@ -395,21 +398,23 @@ function hashOf(href) {
 }
 
 /**
- * Is the page a sign-in page instead of the app? Precedence, first match wins:
- *   1. allowSignIn (the state is meant to show a sign-in page) → never; the only blanket exemption;
- *   2. signInPattern (app.auth.signInUrlPattern) matches the final URL, or the URL of a frame
+ * Is the page a sign-in wall instead of the intended screen? Precedence, first match wins:
+ *   1. allowSignIn (the state is meant to show a sign-in / auth page) → never; blanket exemption;
+ *   2. the page stayed on its planned URL and that URL's path or fragment is an auth surface
+ *      (login, register, forgot/reset password, sso…) → never. Password / sign-in forms on that
+ *      page (including a login shell under a forgot-password dialog) are the target, not a
+ *      missing session. The host is never looked at: a preview host named after a "fix-login"
+ *      branch is not an auth surface by itself;
+ *   3. signInPattern (app.auth.signInUrlPattern) matches the final URL, or the URL of a frame
  *      covering the page, but not the planned URL → yes;
- *   3. a frame covering the page whose URL is a sign-in URL, or that holds a sign-in dialog or form → yes;
- *   4. signedInSelector configured (app.auth.signedInSelector): visible → no (signed in, whatever
+ *   4. a frame covering the page whose URL is a sign-in URL, or that holds a sign-in dialog or form → yes;
+ *   5. signedInSelector configured (app.auth.signedInSelector): visible → no (signed in, whatever
  *      fields the page shows, e.g. a change-password dialog); not visible → yes;
- *   5. an open dialog ([role=dialog], [role=alertdialog], [aria-modal=true], <dialog open>) whose
+ *   6. an open dialog ([role=dialog], [role=alertdialog], [aria-modal=true], <dialog open>) whose
  *      only password field is a current one (a "session expired" modal) → yes, unless `trusted`;
- *   6. the page stayed on its planned URL and that URL's path or fragment is a sign-in page
- *      (QA of the sign-in screen) → no. The host is never looked at: a preview host named after
- *      a "fix-login" branch is not a sign-in page;
  *   7. heuristics: the page moved to a sign-in URL (path or fragment, or another host whose
  *      name says so); the page moved and shows a sign-in form or title; a small page that says
- *      the session ended; or, at the planned URL, a small page whose form is a sign-in form
+ *      the session ended; or, at a non-auth planned URL, a small page whose form is a sign-in form
  *      (isSignInForm), its password branch skipped when `trusted`.
  * `trusted`: a state reached by a driver from a page captured as signed in, on the same host,
  * that did not move: a password field alone does not make it a sign-in page.
@@ -421,6 +426,10 @@ export function classifySignIn({ plannedUrl, finalUrl, signals = null, frames = 
   const no = (signedIn = null) => ({ signIn: false, signedIn, detail: null });
   const yes = (detail) => ({ signIn: true, signedIn: false, detail });
   if (allowSignIn) return no();
+  const moved = !sameLocation(plannedUrl, finalUrl) || hashOf(plannedUrl) !== hashOf(finalUrl);
+  // Auth-surface target (login / register / forgot / reset…): stay on planned URL → not a wall.
+  // Checked before form / frame heuristics so a login shell under a forgot dialog is not exit 6.
+  if (!moved && looksLikeSignInPath(plannedUrl)) return no();
   if (signInPattern && !signInPattern.test(String(plannedUrl))) {
     if (signInPattern.test(String(finalUrl))) return yes(`the page URL matches the sign-in URL pattern /${signInPattern.source}/`);
     const framed = frames.find((f) => signInPattern.test(String(f.url)));
@@ -434,10 +443,8 @@ export function classifySignIn({ plannedUrl, finalUrl, signals = null, frames = 
   if (signedInSelector) {
     return signedInVisible ? no(true) : yes(`the signed-in selector "${signedInSelector}" is not visible, so the signed-in app did not render`);
   }
-  const moved = !sameLocation(plannedUrl, finalUrl) || hashOf(plannedUrl) !== hashOf(finalUrl);
   const trust = trusted && !moved;
   if (signals?.signInDialog && !trust) return yes('a sign-in dialog (a password field in an open dialog) covers the page');
-  if (!moved && looksLikeSignInPath(plannedUrl)) return no();
   if (moved && signInDestination(plannedUrl, finalUrl)) return yes('the page moved to a sign-in URL');
   const s = signals || {};
   const pw = Number(s.loginPasswordFields) || 0;
@@ -470,8 +477,20 @@ function isSignInForm(s, { password = true } = {}) {
 /**
  * What to do when a capture lands on a sign-in page, in plain words, for the auth
  * type in use. Never contains a credential: only variable names and the redacted URL.
+ * Pass `plannedUrl` when known: an auth-surface planned URL (login / register / forgot…)
+ * gets "set allowSignIn", not "save a session".
  */
-export function signInHelp({ auth = 'none', prefix = 'DESIGN_QA_APP', url = '<url>' } = {}) {
+export function signInHelp({ auth = 'none', prefix = 'DESIGN_QA_APP', url = '<url>', plannedUrl = null } = {}) {
+  const planned = plannedUrl || url;
+  // Target is itself an auth page (or we never left one): not a missing signed-in session.
+  if (looksLikeSignInPath(planned) && (!plannedUrl || !url || sameLocation(plannedUrl, url) || looksLikeSignInPath(url))) {
+    return (
+      `This state's target is an authentication page (sign-in, register, forgot/reset password), not a signed-in app screen. ` +
+      `Set "allowSignIn": true on its driver so capture keeps it; do not run save-session for this state. ` +
+      `Paths under login / register / forgot / reset are treated as auth surfaces automatically when the page stays on the planned URL; ` +
+      `"allowSignIn" is still useful when the route name is unusual or the state intentionally shows a sign-in wall.`
+    );
+  }
   const save =
     `save a signed-in session with \`${scriptCommand('setup.mjs')} save-session\` (a browser window opens, the person signs in; ` +
     'default path qa/ui/.auth/<host>.json, gitignored; recorded as app.auth.storageState); or by hand: sign in once and save with ' +
@@ -484,10 +503,10 @@ export function signInHelp({ auth = 'none', prefix = 'DESIGN_QA_APP', url = '<ur
     login: `The login flow (app.auth.login) did not leave a signed-in session. Check its selectors and successSelector, or ${save}.`,
   }[auth] ?? `To supply a session: ${save}.`;
   return (
-    `The target needs a signed-in session; this page is not the app, so nothing was saved under the state's name. ${why} ` +
+    `The target needs a signed-in session (a business page redirected to sign-in); this page is not the app, so nothing was saved under the state's name. ${why} ` +
     `Check the session with \`${scriptCommand('capture.mjs')} --probe\` before capturing again (a sign-in page is not an unreachable app). ` +
     'If the app page legitimately shows a password field, set app.auth.signedInSelector to an element only the signed-in app renders; ' +
-    'if this state is meant to show a sign-in page, set "allowSignIn": true on its driver.'
+    'if this state is meant to show a sign-in / register / forgot page, set "allowSignIn": true on its driver (or use an auth-surface route name).'
   );
 }
 

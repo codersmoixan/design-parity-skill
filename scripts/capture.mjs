@@ -163,12 +163,15 @@ navigating away) fails, unless its driver sets "allowNavigation": true (an actio
 to navigate) or --allow-navigation is given; if every state does, the run exits 5. Scheme, host
 and path are compared: an http → https upgrade of the same host, a trailing slash, the query and
 the fragment do not count.
-Sign-in pages (a redirect to a sign-in URL, #/login, a sign-in, magic-link or "session
+Sign-in walls (a redirect to a sign-in URL, #/login, a sign-in, magic-link or "session
 expired" page, HTTP 401/403, --sign-in-url, a --signed-in-selector not visible) are never
-saved. with-data (else the first state) is captured first: a sign-in page there exits 6 with
-how to supply a session; a later one marks that state (failure kind sign-in) and the run goes
-on (exit 1), and after a signed-in with-data a password field alone does not make one (a
-change-password dialog). A state meant to show a sign-in page sets "allowSignIn": true.
+saved. A planned auth-surface URL that does not navigate away (login / register / signup /
+forgot / reset-password / change-password / sso / oauth / auth…) is not a wall — password
+forms there are the target. with-data (else the first state) is captured first: a wall there
+exits 6 (save-session when kicked from a business page; allowSignIn when the target itself is
+auth); a later wall marks that state (failure kind sign-in) and the run goes on (exit 1), and
+after a signed-in with-data a password field alone does not make one (a change-password
+dialog). Unusual auth route names still set "allowSignIn": true.
 Values may use \${ENV_VAR} placeholders (a missing variable is an error); their values never
 reach the evidence: the manifest keeps the drivers as written, and URLs and messages show
 \${ENV_VAR} instead (a bare base URL such as \${APP_URL} stays readable). Without
@@ -1942,7 +1945,7 @@ async function runProbe(o) {
   }
   if (out.detail) out.detail = o.redact(out.detail);
   console.log(JSON.stringify(out, null, 2));
-  if (!o.quiet && code === EXIT_SIGN_IN) console.error(`probe: ${out.url} shows a sign-in page (${out.detail}). ${signInHelp({ auth: o.auth, prefix: o.prefix, url: out.url })}`);
+  if (!o.quiet && code === EXIT_SIGN_IN) console.error(`probe: ${out.url} shows a sign-in page (${out.detail}). ${signInHelp({ auth: o.auth, prefix: o.prefix, url: out.finalUrl || out.url, plannedUrl: target })}`);
   else if (!o.quiet && code) console.error(`probe: ${out.url} ${out.reachable ? 'is reachable but' : 'is not reachable:'} ${out.detail}`);
   return code;
 }
@@ -2331,7 +2334,7 @@ async function main(argv) {
             manifest.failure = firstSignIn;
             manifest.degradations.push({ step: `capture:${plan.name}`, reason: message, impact: 'Capture stopped at a sign-in page: no state was captured from it.' });
             stopAfter(index, `capture stopped: state "${plan.name}" landed on a sign-in page`);
-            throw new CliError(`state "${plan.name}" landed on a sign-in page, not the app: ${message}. ${signInHelp({ auth, prefix, url: safeUrl })}`, EXIT_SIGN_IN);
+            throw new CliError(`state "${plan.name}" landed on a sign-in page, not the app: ${message}. ${signInHelp({ auth, prefix, url: finalUrl || safeUrl, plannedUrl: plan.url })}`, EXIT_SIGN_IN);
           }
           failures += 1;
           manifest.degradations.push({ step: `capture:${plan.name}`, reason: message, impact: `State "${plan.name}" showed a sign-in page and was not captured; the other states were.` });
@@ -2362,7 +2365,7 @@ async function main(argv) {
     }
     if (firstSignIn && !capturedCount && !previousBase) {
       manifest.failure = firstSignIn;
-      throw new CliError(`every state landed on a sign-in page, not the app. ${signInHelp({ auth, prefix, url: safeUrl })}`, EXIT_SIGN_IN);
+      throw new CliError(`every state landed on a sign-in page, not the app. ${signInHelp({ auth, prefix, url: firstSignIn.finalUrl || safeUrl, plannedUrl: safeUrl })}`, EXIT_SIGN_IN);
     }
     if (navigationFailures === plans.length) {
       const message =
