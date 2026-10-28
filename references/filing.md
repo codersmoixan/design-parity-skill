@@ -51,10 +51,10 @@ One finding per divergence (one element, one property, one state).
 - Do **not** treat this as settled by a `CANNOT_VERIFY` style row on an unmatched inner node, and do **not** bulk-`false-positive` reject the worklist crop when the side-by-side shows missing parent chrome.
 - Pin the worklist region that covers the container; cite the Figma node id of the parent shell when known.
 
-**Missing adjacent major-block gap.** When metadata Y delta between any two adjacent major blocks is a clear band and the app is flush, or the later block's size/position is ≥24px early:
+**Wrong adjacent major-block spacing.** When the app gap between two adjacent major blocks disagrees with the metadata Y delta (**non-zero→flush, flush→invented space, or delta off by ≥24px**):
 
-- File a **`style` spacing** finding (`property: gap` / region naming the pair). Severity **WARNING** (or **BLOCKER** if blocks read glued together).
-- Do **not** only mention it inside a “cumulative vertical shift” note, and do **not** drop the later block's `y` hint without a gap finding when the full-page tile shows no band.
+- File a **`style` spacing** finding (`property: gap` / region naming the pair). Expected = design delta (may be `0`). Severity **WARNING** (or **BLOCKER** when the stack clearly reads wrong).
+- Do **not** only mention it inside a “cumulative vertical shift” note, and do **not** drop the later block's `y` hint without a gap finding.
 
 ## Severity
 

@@ -68,15 +68,17 @@ When design and app captures differ a lot in **page height** (for example design
 
 Do not file dozens of style FAILS that only exist because two different sections were stacked at the same Y.
 
-## Adjacent major-block gaps (must not bury)
+## Adjacent major-block spacing (match DS, including zero)
 
-Major siblings often have **no shared auto-layout `gap` on one node** — the space exists only as **Y delta** (bottom of A → top of B) in metadata / size hints. That includes pairs across layout boundaries (page body vs chrome), not only blocks inside one column.
+Major siblings often have **no shared auto-layout `gap` on one node** — spacing is the **Y delta** (bottom of A → top of B) in metadata / size hints, **including `0` (flush)**. That includes pairs across layout boundaries, not only blocks inside one column.
 
-When design shows a clear band between two adjacent major blocks but the app is **flush**, or the later block's `size/position` is **≥24px early** vs design:
+**Rule: app spacing must match the design delta.** Non-zero in DS → same band in app; zero in DS → flush is correct (do not invent a gap).
 
-1. **File a spacing finding** (`property: gap` / region naming the pair, e.g. `block-A→block-B`). Expected = metadata Y delta; actual = measured or ~0 when flush.
+When the later block's `size/position` is **off by ≥24px** vs design in a way that changes that pair's gap (app flush while DS had a band, **or** app inserted space while DS was flush):
+
+1. **File a spacing finding** (`property: gap` / region `block-A→block-B`). Expected = metadata Y delta (may be `0`); actual = measured.
 2. **Do not** fold it only into “cumulative vertical shift”, reject as noise, or note it solely on the later block's `y` without a gap finding.
-3. Spacing owned by a parent outside the feature `page.js` still counts as a code miss when the designed band is missing.
+3. Spacing owned outside the feature `page.js` still counts when it breaks the designed delta.
 
 ## Re-running
 
