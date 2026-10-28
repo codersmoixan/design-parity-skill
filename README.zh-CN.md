@@ -107,7 +107,7 @@
 - 缺依赖时跑 `ensure-deps.mjs`：已设 `DESIGN_QA_AUTO_INSTALL=1`，或曾同意过（`~/.design-qa/auto-install.json`）则直接安装；否则只问一次，同意后用 `ensure-deps.mjs --grant`。
 - 密钥和下面这些选项放在被测项目**根目录**的 `.env` / `.env.local`（或当前终端）。脚本会自动加载。`qa/ui/design-qa.config.json` 里已经写过的值优先。不要把 token 写进对话，也不要提交 `.env`。不要把 `.env` 放在 `qa/ui` 下。若已误发 token，请在 Figma 轮换作废。关闭加载：`DESIGN_QA_LOAD_ENV=0`。
 - `save-session` 默认把登录会话写到 `qa/ui/.auth/`（由 `qa/ui/.gitignore` 忽略），与功能测试的 `qa/functional/.auth/` 同思路——工程产生的垃圾留在仓库内便于清理，会话文件永不提交。
-- 本地与远程地址都会询问 Cookie/遮挡条（远程还会问是否登录态），除非 `DESIGN_QA_HIDE` 和 `DESIGN_QA_SIGNED_IN` 都已配置。询问时，答案写入 `pre-capture-answers.json`，再执行 `ack-pre-capture`。
+- 本地与远程地址都会询问 Cookie/遮挡条（远程还会问是否登录态），除非仓库根目录 `.env` 里同时配置了 `DESIGN_QA_HIDE` 和 `DESIGN_QA_SIGNED_IN`。两者齐全时，`start` 会打印 `Pre-capture from .env` 并跳过询问。推荐用 `printf '\nDESIGN_QA_HIDE=none\nDESIGN_QA_SIGNED_IN=false\n' >> .env` 追加（每行一个键；避免在上一行没有换行时用 `echo >>` 把 `DESIGN_QA_HIDE` 粘到 `FIGMA_TOKEN` 后面）。询问时，答案写入 `pre-capture-answers.json`，再执行 `ack-pre-capture`。
 
 脚本从被测项目的目录运行。`SKILL.md` 里的 `node scripts/...` 实际指向本 skill 的 `scripts/`。Windows PowerShell 下链式步骤使用 `seq.mjs`，不要改成 `&&`。
 
@@ -120,8 +120,8 @@
 | `DESIGN_QA_AUTO_INSTALL=1` | 直接安装 skill 目录里的依赖，不再询问。`0` 表示从不自动安装。未设置时，沿用以前同意过的 `~/.design-qa/auto-install.json`。 |
 | `FIGMA_TOKEN` | 用 REST 拉取设计，不再连接 Figma MCP。 |
 | `JIRA_BASE_URL`、`JIRA_EMAIL`、`JIRA_API_TOKEN` | 三项都有时，不再询问 Jira 凭证。配置里没有站点地址时，`JIRA_BASE_URL` 同时作为站点地址。 |
-| `DESIGN_QA_HIDE` | `none`（不隐藏）、`find`（由检查去找遮挡，不写入配置），或一段 JSON 形式的 preCapture。 |
-| `DESIGN_QA_SIGNED_IN` | `true` 或 `false`。必须和 `DESIGN_QA_HIDE` 同时配置，才会跳过远程页面的 Cookie / 登录态询问。`true` 且没有已保存的登录时，会打开浏览器，由你自己登录。 |
+| `DESIGN_QA_HIDE` | `none`（不隐藏）、`find`（由检查去找遮挡，不写入配置），或一段 JSON 形式的 preCapture。与 `DESIGN_QA_SIGNED_IN` 同时配置后，本地与远程都不再询问 Cookie/遮挡条。 |
+| `DESIGN_QA_SIGNED_IN` | `true` 或 `false`。必须和 `DESIGN_QA_HIDE` 同时配置，才会跳过 Cookie / 登录态询问。`true` 且没有已保存的登录时，会打开浏览器，由你自己登录。 |
 | `DESIGN_QA_APP_STORAGE_STATE` | 使用这份已保存的登录会话。前缀跟 `app.auth.envPrefix`，默认是 `DESIGN_QA_APP`。默认落盘路径为 `qa/ui/.auth/<host>.json`（gitignore，与功能测试 `.auth/` 同思路；不再默认写到 `~/.design-qa/sessions/`）。 |
 | `DESIGN_QA_APP_COOKIE` | 用这份 cookie 登录。 |
 | `DESIGN_QA_APP_USER`、`DESIGN_QA_APP_PASS`、`DESIGN_QA_APP_AUTH=basic` | HTTP 基本认证。配置里已经写了登录方式时，以配置为准。会话文件不存在或已经过期时，仍会询问。 |
@@ -144,7 +144,7 @@
 1. **开始。** 记下功能名、设计链接和页面地址，建立本次报告目录和运行编号。若脚本提问，一次问完再继续。需要登录时，在打开的窗口里完成。
 2. **取出设计。** 有 Figma token 时由脚本拉取画板（默认仅链接帧；`--multi-screen` 才拉同页旁帧）。没有 token 时，用 Figma 连接读取结构，再按每个状态截一张 1 倍图。原型则按屏幕和状态记录，例如空购物车对应 `?empty=1`。工单则先读取工单内容。
 3. **截取并对比。** 按设计稿里的每个状态截整页，做差异和设计系统审计。某个状态没截到会标出来；页面缺少该状态，或截图方式不对时，报告不会放行。
-4. **写下判断。** 对照并排图和具体数值，把每一条差异写成发现或写明拒绝原因。数值以脚本读到的为准，不手量像素。
+4. **写下判断。** 对照并排图和具体数值，把每一条差异写成发现或写明拒绝原因。数值以脚本读到的为准，不手量像素。**一条 worklist 问题对应一张能看懂的卡片**：`title` / 期望 / 实际 / 修复说明必须点名该问题（例如页脚 Logo 字色、多余「Follow us」），禁止把多种根因揉进「页脚图标」之类空泛标题；细则见 `references/filing.md`「Finding cards must name the real issue」。
 5. **生成报告。** 产出 `report.json`、`report.html` 和修复清单。之前忽略过的条目会重新套用。
 6. **人工复核。** 打开报告。选择现在修或记成债务，忽略时要写原因，也可以标出这次漏掉的问题。确认送出后才会改代码并重新截图。直接关掉报告则不会应用这些决定。
 7. **结束。** 脚本打印本次对照已完成。回复里包含判定句、现在要修的条目、设计系统偏差数量，以及 `report.html` 的路径。

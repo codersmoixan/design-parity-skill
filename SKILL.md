@@ -52,9 +52,25 @@ Whenever `pass.mjs` exits **3**, or a `Do:` line says to ask / tell the person (
 2. Do **not** end the turn with only tool/log output, and do **not** run `Next:` until they reply (or explicitly say to use defaults / skip).
 3. Prefer copying the printed `Ask the person` / `Question` block into chat; do not bury it inside a silent tool loop.
 
-App URLs (local, preview, staging, or prod): `start` exits 3 with pre-capture questions before the first live capture, unless the repository-root `.env` (or the shell) already sets both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN`. When those are set, do not ask. Localhost still asks about Cookie/consent chrome (design frames omit it; leaving it up covers footers). Remote URLs also ask about signed-in header. When the block is printed, after they answer, write `<dir>/pre-capture-answers.json` and run the printed `Next:` (`ack-pre-capture`, then design fetch / evidence).
+App URLs (local, preview, staging, or prod): `start` exits 3 with pre-capture questions before the first live capture, unless the repository-root `.env` (or the shell) already sets both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN`. When those are set, do not ask — `start` prints `Pre-capture from .env: … (Cookie/consent ask skipped)`. Localhost still asks about Cookie/consent chrome when unset (design frames omit it; leaving it up covers footers). Remote URLs also ask about signed-in header. When the Ask block is printed, after they answer, write `<dir>/pre-capture-answers.json` and run the printed `Next:` (`ack-pre-capture`, then design fetch / evidence).
 
-**Root `.env` before any question.** Scripts load `.env` / `.env.local` from the repository root (never from `qa/ui`). If a variable below is set, use it and do not ask. If it is unset, ask as usual. A value already in `qa/ui/design-qa.config.json` wins over `.env`.
+**Root `.env` before any question.** Scripts load `.env` / `.env.local` from the repository root (never from `qa/ui`). If a variable below is set, use it and do not ask. If it is unset, ask as usual. A value already in `qa/ui/design-qa.config.json` wins over `.env`. **Never open `.env` to print or paste secret values** (tokens); you may confirm key *names* exist (`grep -E '^DESIGN_QA_(HIDE|SIGNED_IN)=' .env`) without dumping values.
+
+**Cookie / consent via `.env` (preferred).** Before the first live capture, prefer writing both vars so `start` never exits 3 on this ask:
+
+```bash
+# One KEY=value per line. Always use printf with a leading \\n so a prior line missing
+# its trailing newline cannot glue DESIGN_QA_HIDE onto FIGMA_TOKEN.
+printf '\nDESIGN_QA_HIDE=none\nDESIGN_QA_SIGNED_IN=false\n' >> .env
+```
+
+| `DESIGN_QA_HIDE` | Meaning |
+|---|---|
+| `none` | No cookie/consent/chat chrome to hide (or leave it) |
+| `find` | Banner exists; agent still looks up selectors after capture |
+| JSON object | Apply that `preCapture` (`hide` / `remove` / `click` / storage) |
+
+`DESIGN_QA_SIGNED_IN` must be `true` or `false`. Both vars are required to skip the ask. If `start` still asks despite an intended `.env`, read the `Pre-capture .env incomplete` line (often a glued `FIGMA_TOKEN=…DESIGN_QA_HIDE=none` line) and fix the file; do not re-ask the person until that is fixed or they confirm defaults.
 
 | Set in `.env` | Do not ask |
 |---|---|
@@ -115,7 +131,7 @@ node scripts/pass.mjs start --feature <slug> [--design '<url>'] [--prototype '<u
 |---|---|
 | 0 | Optional questions are printed in full with their answers line: ask once. |
 | 3, questions or "Assumed" | **Your next chat message must ask the person** (their language; copy options). Ask them all in one round with the "Assumed" list (references/onboarding.md), save the answers where the `Do:` line says, then run `Next:`: it saves them and restarts. Never end the turn with only tool output. |
-| 3, Ask the person / pre-capture | App URL (local or remote) before first capture, when `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are not both set: **surface the Ask-the-person block in chat now**. After they reply, write `<dir>/pre-capture-answers.json`, then run `Next:` (`ack-pre-capture` then design/evidence). Do not run evidence until they answer (or say use defaults). When both variables are set, do not ask. |
+| 3, Ask the person / pre-capture | App URL (local or remote) before first capture, when `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are not both set: **surface the Ask-the-person block in chat now**. After they reply, write `<dir>/pre-capture-answers.json`, then run `Next:` (`ack-pre-capture` then design/evidence). Do not run evidence until they answer (or say use defaults). When both variables are set, `start` prints `Pre-capture from .env` and does **not** ask — proceed with `Next:`. If it still asks, fix a glued/incomplete `.env` (see `Pre-capture .env incomplete`) before re-asking. |
 | 3, sign-in | Ask any printed questions first **in chat**. Run `Next:` as a long-running command (it chains `apply`, `save-session` and start). The person signs in in the window; you type nothing. |
 | 5 | The folder belongs to another run: start your own pass without `--resume`. |
 
@@ -125,7 +141,7 @@ The `Do:` lines say which way applies:
 
 - **Coded prototype.** One screen, no extra states: nothing to do. Several screens: `start --screen <id>=<prototype url>,<app url>` once per screen. Extra states: add them to `<dir>/states.json` before `evidence`, keyed `<screen>/<state>` (`"cart/empty": { "query": "?empty=1" }`; references/prototype-source.md). `start` prints a skeleton.
 - **Figma with `FIGMA_TOKEN` (preferred).** When the token is in the shell or project `.env` / `.env.local`, run the printed `figma-fetch.mjs` command (via `seq.mjs` when chained with evidence). Skip the MCP path even if Figma tools are available. **Default is the linked frame only.** Use `start --multi-screen` or `figma-fetch --screens auto` only for a whole page/section with several app routes. Never paste the token into chat or the command line.
-- **Pre-capture chrome.** On any live app URL (local or remote), `start` exits 3 with an **Ask the person** block (cookie/consent/chat hide; remote also asks signed-in header) unless the repository-root `.env` (or the shell) sets both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN`. When both are set, use them and do not ask. Copy the block into chat only when it is printed; after answers, write `pre-capture-answers.json` and run `Next:` (`ack-pre-capture`). references/browser-capture.md.
+- **Pre-capture chrome.** On any live app URL (local or remote), `start` exits 3 with an **Ask the person** block (cookie/consent/chat hide; remote also asks signed-in header) unless the repository-root `.env` (or the shell) sets both `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN`. When both are set, use them and do not ask (`Pre-capture from .env` in the log). Prefer setting those vars with `printf '\\nDESIGN_QA_HIDE=none\\nDESIGN_QA_SIGNED_IN=false\\n' >> .env` before `start`. Copy the Ask block into chat only when it is printed; after answers, write `pre-capture-answers.json` and run `Next:` (`ack-pre-capture`). references/browser-capture.md.
 - **Ignored sibling frames.** After `frame-map-from-census.mjs --ignore-unmapped`, re-run `figma-fetch` with `--frame-map` then evidence. Scripts prune orphan `pass.states` / stale `figma/*.png` for ignored provisional states — do not invent drivers for them.
 - **Figma MCP (only when there is no token).**
   1. `get_metadata` on the widest node linked (the section or page), saved as returned to `<dir>/evidence/metadata.xml`.
@@ -209,6 +225,7 @@ It builds `report.json` (earlier dismissals re-applied), renders `report.html` a
 - Mixed Figma text fills (one TEXT node, several colours — e.g. a brown link inside slate copy): never treat the node-level fill as the only design colour. Follow `mixed-text-styles` worklist hints and file per run (references/figma-extraction.md, references/filing.md).
 - **Parent chrome vs children:** if design wraps a group in a filled/rounded/stroked parent and the app peels that shell onto a subset of children (rest on page background), file a structure/style finding — do not clear it via unmatched `CANNOT_VERIFY` rows or bulk false-positive rejects (references/filing.md, references/worklist.md).
 - **Adjacent major-block spacing:** app gap between major siblings must match metadata Y delta (**including `0`**). File a spacing finding when the pair is off by ≥24px (missing band **or** invented band) — do not bury as only “cumulative vertical shift” (references/worklist.md, "Adjacent major-block spacing").
+- **Finding prose must match the crop:** one worklist issue → one finding whose `title` / `expected` / `actual` / `fix.summary` name that issue. Do **not** lump logo wordmark colour, hidden-vs-extra copy (`visible: false` / `text-only-app`), and payment icons into one vague “footer icons” card. Bitmap lockups and composed DS stacks (mask + white vectors) must be spelled out — CSS `color` rows will not catch them (references/filing.md, "Finding cards must name the real issue").
 
 ## Keeping cost down
 

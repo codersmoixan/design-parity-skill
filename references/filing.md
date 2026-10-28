@@ -43,6 +43,39 @@ Do not change: `ref`, ledger/severity/resolution enums, selectors, token names, 
 
 One finding per divergence (one element, one property, one state).
 
+### Finding cards must name the real issue (no vague lumps)
+
+Review cards show `title` / `expected` / `actual` / `fix.summary`. A worklist pin alone is **not** enough: if those fields only mention a neighbour (e.g. “payment icons”) while the crop’s real issues are elsewhere (footer logo wordmark colour, extra `Follow us`), the person correctly sees the finding as incomplete.
+
+**Split when root causes differ.** Do **not** merge several worklist keys into one finding just because they sit in the same footer/header band. Separate findings when any of these differ:
+
+| Split when… | Example (do not lump) |
+|---|---|
+| Different element | Footer logo lockup vs payment marks vs social row |
+| Different property / mechanism | IMAGE fill colour vs missing/extra TEXT vs icon asset |
+| Design layer visibility differs | App shows copy that exists in Figma only as `visible: false` |
+| Hint class differs | `text-only-app` vs `only-design` VECTOR vs size-only |
+
+**Write so a reviewer can act without re-opening the crop.**
+
+| Field | Must include |
+|---|---|
+| `title` | The concrete wrong thing in the app (element + what is wrong). Prefer naming the copy/layer (`Follow us`, `Clibee` wordmark). |
+| `expected.value` | What the **visible** design does (and, when relevant, hidden layers: e.g. “TEXT exists but `visible: false`”). Cite Figma node / mask+vector stack when that is the DS mechanism. |
+| `actual.value` | What the app does (selector or asset path when useful). |
+| `fix.summary` | The fix in one sentence (which file / which asset to change). |
+
+**Anti-patterns (forbidden):**
+
+- One finding titled only “页脚未对齐 / footer icons” that pins logo + Follow us + payments together, while prose only describes the right-hand payment row.
+- Pinning `text-only-app: Follow us` under a finding whose `title` never says Follow us.
+- Treating a bitmapped logo (`<img>`) colour error as “covered” by a generic footer finding that never mentions wordmark / lockup / mask+white vectors.
+- Bulk-`false-positive` rejecting compare rows that would have forced you to spell out these issues — rejections must not hide undiagnosed structure problems.
+
+**Raster / composed chrome (logos, badges):** If design composites IMAGE + mask rect + VECTOR text (or equivalent) and the app uses a single wrong PNG (e.g. header lockup on a dark footer), file a **structure** finding that states that stack — not only “logo size”. Colour-of-letters inside a bitmap will **not** show up as a CSS `color` FAIL; the finding text must still call it out when the worklist crop or inspect layers show the mismatch.
+
+**Hidden design text vs app-only copy:** When inspect/worklist says `text-only-app` for a string that also exists in `figma-spec` with `visible: false`, file **extra-in-app / remove copy** (visible design has no label). Do not reject as `matches-design` just because a hidden node exists in the file.
+
 **Mixed Figma text colours.** When the worklist shows `mixed-text-styles`, or design copy is one TEXT layer while the app splits a link (`<a>`) out of the sentence: compare the **link run** and the **body run** separately (Figma `textRuns` / character overrides). A PASS on the node's default fill does not clear a wrong link colour. File a `style` finding for the run that differs (expected token from that run, e.g. `primary-brown` on "Register here !").
 
 **Parent chrome peeled onto children.** When Figma shows a parent INSTANCE / COMPONENT / FRAME with **fill, radius, stroke, and/or shadow** that visually wraps a group of children, and the app applies that fill/radius only to a subset (e.g. media) while the rest of the children sit on the page background:

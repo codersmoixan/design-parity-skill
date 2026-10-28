@@ -107,7 +107,7 @@ If you ask in **Chinese**, the agent passes `--locale zh` and `report.html` chro
 - Missing packages: run `ensure-deps.mjs`. With `DESIGN_QA_AUTO_INSTALL=1` or a prior consent file (`~/.design-qa/auto-install.json`), install without asking; otherwise ask once, then `ensure-deps.mjs --grant`.
 - Put secrets and the choices below in the app repo's root `.env` / `.env.local` (or the shell). Scripts load those files automatically. A value already in `qa/ui/design-qa.config.json` wins. Never paste tokens into chat or commit `.env`. Do not put `.env` under `qa/ui`. Opt out of env loading: `DESIGN_QA_LOAD_ENV=0`.
 - Signed-in Playwright sessions from `save-session` default to `qa/ui/.auth/` (gitignored via `qa/ui/.gitignore`), same idea as functional-test `qa/functional/.auth/` — keep project junk under the repo for cleanup; never commit the session file.
-- On local and remote URLs, `start` asks about cookie/consent chrome (remote also asks signed-in) unless `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are both set. When it does ask, answers go to `pre-capture-answers.json`, then `ack-pre-capture`.
+- On local and remote URLs, `start` asks about cookie/consent chrome (remote also asks signed-in) unless `DESIGN_QA_HIDE` and `DESIGN_QA_SIGNED_IN` are both set in the repository-root `.env`. When both are set, `start` logs `Pre-capture from .env` and skips the ask. Append safely with `printf '\nDESIGN_QA_HIDE=none\nDESIGN_QA_SIGNED_IN=false\n' >> .env` (one key per line; avoid `echo >>` when the previous line may lack a newline). When it does ask, answers go to `pre-capture-answers.json`, then `ack-pre-capture`.
 
 Commands run from the repository under test. A `node scripts/...` path in `SKILL.md` points at this skill's `scripts/` directory. Chained Next commands use `seq.mjs` (not shell `&&`) so PowerShell works.
 
@@ -120,8 +120,8 @@ Scripts read these from the repository-root `.env` / `.env.local` or the shell. 
 | `DESIGN_QA_AUTO_INSTALL=1` | Install skill-folder packages without asking. `0` never auto-installs. Unset: use `~/.design-qa/auto-install.json` from a prior consent. |
 | `FIGMA_TOKEN` | Fetch the design with REST. Do not connect Figma MCP. |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | All three set: do not ask for Jira credentials. `JIRA_BASE_URL` is also the Jira site URL when the config has none. |
-| `DESIGN_QA_HIDE` | `none` (hide nothing), `find` (look for the banner; not saved), or a JSON preCapture object. |
-| `DESIGN_QA_SIGNED_IN` | `true` or `false`. Both this and `DESIGN_QA_HIDE` must be set to skip the remote cookie / signed-in question. `true` without a saved session opens a browser window; you sign in there. |
+| `DESIGN_QA_HIDE` | `none` (hide nothing), `find` (look for the banner; not saved), or a JSON preCapture object. With `DESIGN_QA_SIGNED_IN`, skips the cookie/consent ask on local and remote URLs. |
+| `DESIGN_QA_SIGNED_IN` | `true` or `false`. Both this and `DESIGN_QA_HIDE` must be set to skip the cookie / signed-in question. `true` without a saved session opens a browser window; you sign in there. |
 | `DESIGN_QA_APP_STORAGE_STATE` | Use this saved session. Prefix follows `app.auth.envPrefix` (default `DESIGN_QA_APP`). Default on disk: `qa/ui/.auth/<host>.json` (gitignored; not `~/.design-qa/sessions/`). |
 | `DESIGN_QA_APP_COOKIE` | Sign in with this cookie. |
 | `DESIGN_QA_APP_USER`, `DESIGN_QA_APP_PASS`, `DESIGN_QA_APP_AUTH=basic` | HTTP basic auth. An auth type already in the config wins. A missing or expired session is still asked. |
@@ -144,7 +144,7 @@ Start
 1. **Start.** Record the feature name, design URL, and page URL. Create this run's report directory and run id. If the script asks questions, answer them in one round. Sign in inside the window it opens.
 2. **Fetch the design.** With a Figma token, the script fetches frames (linked frame only by default; `--multi-screen` pulls siblings). Without a token, the Figma connection reads the structure, then captures one 1x screenshot per state. A coded prototype is recorded per screen and state, such as an empty cart at `?empty=1`. A ticket is read first.
 3. **Capture and compare.** Capture the whole page for every designed state, then diff and audit. A state that was not captured is named. The report is refused when the page lacks that state or the capture driver is wrong.
-4. **Record judgments.** Compare the side-by-side tiles and the measured values. Every difference becomes a finding or a rejection with a reason. Use the values the script read. Do not measure pixels by hand.
+4. **Record judgments.** Compare the side-by-side tiles and the measured values. Every difference becomes a finding or a rejection with a reason. Use the values the script read. Do not measure pixels by hand. **One worklist issue → one actionable card:** `title` / expected / actual / fix must name that issue (e.g. footer logo wordmark colour, extra “Follow us”); do not lump different root causes under a vague “footer icons” title — see `references/filing.md` (“Finding cards must name the real issue”).
 5. **Build the report.** Write `report.json`, `report.html`, and the fix plan. Earlier dismissals are applied again.
 6. **Review.** Open the report. Choose fix now or debt, dismiss with a reason, and mark anything the pass missed. Decisions are applied, and the code is recaptured, only after the review is sent. Closing the report without sending does not apply them.
 7. **Finish.** The script prints that the pass is finished. The reply includes the verdict line, the fix-now items, design-system mismatch counts, and the path to `report.html`.
