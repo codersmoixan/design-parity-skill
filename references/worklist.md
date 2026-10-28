@@ -27,7 +27,8 @@ Inspect the image and exact values before deciding.
    | `text differs` | Copy (no DATA hint means copy): search the source for the string, then file a `structure` finding. |
    | `casing differs` | Apply the project's copy rules. |
    | `value …: font-size 24px → 20px (design → app)` | A `style` finding with those values. |
-   | `size/position` | A **dedicated** layout/`style` finding for that box (width/height/position). Never merge into a sibling copy/colour finding in the same band (references/filing.md, “size / geometry must get its own card”). |
+   | `size/position` | A **dedicated** layout/`style` finding for that box (width/height/position). Never merge into a sibling copy/colour finding in the same band (references/filing.md, “size / geometry must get its own card”). Includes **campaign/hero subject IMAGE boxes** (x/crop), not only icons. |
+   | Banner crop with person/product art | Always compare the main media layer’s box via `inspect` (design RECTANGLE/IMAGE vs app `<img>` / absolute frame). Position/crop misses are findings, not `DATA` (references/filing.md, “Composed media / hero placement”). |
    | `only in design` / `only in app` | Missing in the app, or extra in the app (`structure`). |
    | `shift` on a missing-in-app or extra-in-app item | A whole section is missing or added. |
    | `blank` | The frame is only taller or wider than its content. Usually `same`: paste the rejection the hint prints into `rejected`. |
@@ -49,7 +50,7 @@ Inspect the image and exact values before deciding.
 
 6. **`+N more hint(s)` (hard rule).** When the item line ends with `+N more hint(s)`, the markdown summary is truncated. **Before** closing that item, run `inspect.mjs --dir <dir> --item <key>` (raise `--limit` if needed) and account for every remaining hint class — especially `size` / `size/position`, `only-design` icon frames, and `text-only-app` labels. Do not decide from the truncated bullet list alone.
 
-7. **Close-item checklist.** An item is not done until each hint class on it (`text-only-app`, `text-only-design`, `text-differs`, `only-design`, `only-app`, `size` / `size/position`, `value`, `mixed-text-styles`, …) is either a finding whose prose names that issue or a rejection with a real reason. For dense header/footer/utility crops, also walk the visible pieces (logo, labels, social icon size, payment marks, copyright, heading colour) even when only some appear in the first hints (references/filing.md).
+7. **Close-item checklist.** An item is not done until each hint class on it (`text-only-app`, `text-only-design`, `text-differs`, `only-design`, `only-app`, `size` / `size/position`, `value`, `mixed-text-styles`, …) is either a finding whose prose names that issue or a rejection with a real reason. For dense header/footer/utility crops, also walk the visible pieces (logo, labels, social icon size, payment marks, copyright, heading colour) even when only some appear in the first hints (references/filing.md). For campaign/hero/about crops, also walk **subject image x/y/crop**, headline runs, and CTA before closing.
 
 ## Caps
 

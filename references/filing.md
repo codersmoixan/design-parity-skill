@@ -68,7 +68,15 @@ Review cards show `title` / `expected` / `actual` / `fix.summary`. A worklist pi
 
 **`size` / geometry must get its own card (hard rule).** When a worklist `size` / `size/position` hint, or `inspect` on the item, shows a meaningful box delta on an icon, badge, logo, or control (width, height, or both off enough to read wrong — e.g. **48×48 → 21×21**), file a dedicated `style` finding (`property: width` / `height` / both). Do **not** fold that size into a sibling card about extra/missing text, colour, or a different asset in the same band.
 
+**Composed media / hero placement (hard rule).** In campaign, hero, category, or about banners, compare the **subject IMAGE / RECTANGLE box** (x, y, width, height, and crop/`object-position`), not only nearby type. If design places the subject inset (e.g. kid layer **x≈234**) and the app pins it flush (`left-0` / different crop), file a dedicated `style` or `structure` finding (`property: x` / crop). Severity at least **WARNING** (**BLOCKER** when the composition reads wrong at a glance).
+
+- **Not DATA.** Product photo *content* may differ; the **layout frame and crop** of a designed media layer must still match. Do not reject as `DATA` because “it’s an image.”
+- **Do not** stop at a typography-only finding (font-size on `SAVE 40%`) while leaving the media box unnamed when the side-by-side shows a clear position/crop miss.
+- On large worklist crops that include a banner: always `inspect` design vs app boxes for the main media layers before closing the item.
+
 **Dense chrome bands (header / footer / utility row):** before marking the worklist item done, list every distinct visible piece in the crop (logo lockup, extra/missing label, social icon **size**, payment marks, copyright, column heading colour, …). Each piece → its own finding or an explicit rejection. Closing the item after only the “loudest” one or two issues is a miss.
+
+**Dense content bands (campaign / hero / about / category):** same rule for **media box + copy + CTA**. List subject image position/crop, headline runs, button, and decorative layers; each mismatch → its own card or rejection.
 
 **Write so a reviewer can act without re-opening the crop.**
 
@@ -84,6 +92,7 @@ Review cards show `title` / `expected` / `actual` / `fix.summary`. A worklist pi
 - One finding titled only “页脚未对齐 / footer icons” that pins logo + Follow us + payments together, while prose only describes the right-hand payment row.
 - Pinning `text-only-app: Follow us` under a finding whose `title` never says Follow us.
 - Filing Follow us / logo colour while leaving social (or payment) **icon size** unnamed when inspect shows a clear box delta.
+- Filing only campaign/headline type (e.g. `SAVE 40%` font-size) while the subject image **x/y/crop** is clearly off in the same banner and stays unnamed.
 - Treating a bitmapped logo (`<img>`) colour error as “covered” by a generic footer finding that never mentions wordmark / lockup / mask+white vectors.
 - Bulk-`false-positive` rejecting compare rows that would have forced you to spell out these issues — rejections must not hide undiagnosed structure problems.
 - Using `covers` (or a script that attaches every leftover `elementClass` to a nearby finding) so `--check` passes while the review cards still omit a real visual mismatch.
