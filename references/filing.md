@@ -45,6 +45,12 @@ One finding per divergence (one element, one property, one state).
 
 **Mixed Figma text colours.** When the worklist shows `mixed-text-styles`, or design copy is one TEXT layer while the app splits a link (`<a>`) out of the sentence: compare the **link run** and the **body run** separately (Figma `textRuns` / character overrides). A PASS on the node's default fill does not clear a wrong link colour. File a `style` finding for the run that differs (expected token from that run, e.g. `primary-brown` on "Register here !").
 
+**Parent chrome peeled onto children.** When Figma shows a parent INSTANCE / COMPONENT / FRAME with **fill, radius, stroke, and/or shadow** that visually wraps a group of children, and the app applies that fill/radius only to a subset (e.g. media) while the rest of the children sit on the page background:
+
+- File a **`structure` (or `style`)** finding: expected parent-shell fill/radius/stroke/shadow on one wrapping container; actual missing or partial shell. Severity at least **WARNING** (often **BLOCKER** when the DS container no longer reads as designed).
+- Do **not** treat this as settled by a `CANNOT_VERIFY` style row on an unmatched inner node, and do **not** bulk-`false-positive` reject the worklist crop when the side-by-side shows missing parent chrome.
+- Pin the worklist region that covers the container; cite the Figma node id of the parent shell when known.
+
 ## Severity
 
 | Severity | Use for |
