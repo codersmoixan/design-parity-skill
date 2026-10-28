@@ -68,17 +68,15 @@ When design and app captures differ a lot in **page height** (for example design
 
 Do not file dozens of style FAILS that only exist because two different sections were stacked at the same Y.
 
-## Inter-section / section→footer gaps (must not bury)
+## Adjacent major-block gaps (must not bury)
 
-Major siblings (hero, sliders, category, campaign, about, **footer**) often have **no shared auto-layout `gap` property** on one node — the space is only visible as **Y delta** between bottoms and tops in metadata / size hints.
+Major siblings often have **no shared auto-layout `gap` on one node** — the space exists only as **Y delta** (bottom of A → top of B) in metadata / size hints. That includes pairs across layout boundaries (page body vs chrome), not only blocks inside one column.
 
-When worklist `size/position` shows footer (or the next major section) **higher than design by ≥24px** (app Y smaller), or the full-page tile shows the last content block **flush against** the footer with no cream/white band:
+When design shows a clear band between two adjacent major blocks but the app is **flush**, or the later block's `size/position` is **≥24px early** vs design:
 
-1. **File a spacing finding** (`property: gap` or `margin` / region `about→footer` or `section-stack`). Expected = design gap from metadata (e.g. about bottom → footer top = 64px). Actual = measured or ~0 when flush.
-2. **Do not** fold that solely into “cumulative section shift” / reject as noise / only note it on the footer's own `y` without a gap finding.
-3. Layout chrome (header/footer outside `page.js`) still counts: missing `padding-bottom` on main is a code miss, not “out of scope”.
-
-Already missed once: homepage about→footer 64px in DS, app `pb-0`, report had footer `y -46` hints but no gap finding.
+1. **File a spacing finding** (`property: gap` / region naming the pair, e.g. `block-A→block-B`). Expected = metadata Y delta; actual = measured or ~0 when flush.
+2. **Do not** fold it only into “cumulative vertical shift”, reject as noise, or note it solely on the later block's `y` without a gap finding.
+3. Spacing owned by a parent outside the feature `page.js` still counts as a code miss when the designed band is missing.
 
 ## Re-running
 

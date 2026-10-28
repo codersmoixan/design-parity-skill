@@ -208,7 +208,7 @@ It builds `report.json` (earlier dismissals re-applied), renders `report.html` a
 - After that recapture, `pass.mjs report` restarts the review server on its own and prints a fresh `Review open:` link — give it to the person so they can keep viewing the updated report. Do not wait for another Send unless they send again (references/fix-loop.md, references/review.md).
 - Mixed Figma text fills (one TEXT node, several colours — e.g. a brown link inside slate copy): never treat the node-level fill as the only design colour. Follow `mixed-text-styles` worklist hints and file per run (references/figma-extraction.md, references/filing.md).
 - **Parent chrome vs children:** if design wraps a group in a filled/rounded/stroked parent and the app peels that shell onto a subset of children (rest on page background), file a structure/style finding — do not clear it via unmatched `CANNOT_VERIFY` rows or bulk false-positive rejects (references/filing.md, references/worklist.md).
-- **Inter-section / section→footer gaps:** when metadata/worklist shows a clear Y gap between major siblings (e.g. about bottom → footer top) but the app is flush or footer `y` is ≥24px early, **file a spacing finding** — do not bury it as only “cumulative vertical shift” (references/worklist.md, "Inter-section / section→footer gaps").
+- **Adjacent major-block gaps:** when metadata/worklist shows a clear Y band between any two adjacent major blocks but the app is flush (or the later block is ≥24px early), **file a spacing finding** — do not bury it as only “cumulative vertical shift” (references/worklist.md, "Adjacent major-block gaps").
 
 ## Keeping cost down
 
