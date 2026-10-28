@@ -11,6 +11,21 @@ export const LOAD_ENV_FLAG = 'DESIGN_QA_LOAD_ENV';
 /** Files loaded in order; later files override earlier file values, never process.env. */
 export const DOTENV_FILES = Object.freeze(['.env', '.env.local']);
 
+/**
+ * Keys that agents often append to `.env` with `echo >>`. If the previous line had no
+ * trailing newline, they glue onto the prior value (e.g. FIGMA_TOKEN=…DESIGN_QA_HIDE=none).
+ * Used only to insert a newline before a glued KEY= — never logged as values.
+ */
+export const GLUED_ENV_KEY_RE = /(?<=\S)(?=(?:DESIGN_QA_[A-Z0-9_]+|JIRA_[A-Z0-9_]+|FIGMA_TOKEN)=)/g;
+
+/**
+ * Insert newlines before known KEY= segments that were concatenated onto a prior value.
+ * Idempotent for already-correct dotenv text.
+ */
+export function unglueEnvText(text) {
+  return String(text ?? '').replace(GLUED_ENV_KEY_RE, '\n');
+}
+
 function parseEnvFlag(raw) {
   if (raw == null || raw === '') return null;
   const v = String(raw).trim().toLowerCase();
@@ -57,7 +72,11 @@ export function parseDotEnv(text) {
 function readDotEnvFile(file) {
   try {
     if (!existsSync(file)) return null;
-    return parseDotEnv(readFileSync(file, 'utf8'));
+    const raw = readFileSync(file, 'utf8');
+    const text = unglueEnvText(raw);
+    const parsed = parseDotEnv(text);
+    const repaired = text !== raw;
+    return { parsed, repaired };
   } catch {
     return null;
   }
@@ -110,6 +129,7 @@ export function applyEnvVars(parsed, env = process.env) {
 /**
  * Load `.env` then `.env.local` from each search dir into process.env (or `env`).
  * Silent; never logs values. No-op when DESIGN_QA_LOAD_ENV=0/false/no.
+ * Glued KEY= (missing newline after a prior value) is repaired in memory only.
  */
 export function loadProjectEnv({
   cwd = process.cwd(),
@@ -117,22 +137,24 @@ export function loadProjectEnv({
   files = DOTENV_FILES,
 } = {}) {
   const flag = parseEnvFlag(env[LOAD_ENV_FLAG]);
-  if (flag === false) return { applied: [], files: [], skipped: true, dirs: [] };
+  if (flag === false) return { applied: [], files: [], skipped: true, dirs: [], repairedFiles: [] };
 
   const dirs = envSearchDirs(cwd);
   const merged = Object.create(null);
   const loadedFiles = [];
+  const repairedFiles = [];
   for (const dir of dirs) {
     for (const name of files) {
       // Never load example / sample templates
       if (/\.example$/i.test(name) || /\.sample$/i.test(name)) continue;
       const abs = path.join(dir, name);
-      const parsed = readDotEnvFile(abs);
-      if (!parsed) continue;
-      Object.assign(merged, parsed);
+      const result = readDotEnvFile(abs);
+      if (!result) continue;
+      Object.assign(merged, result.parsed);
       loadedFiles.push(abs);
+      if (result.repaired) repairedFiles.push(abs);
     }
   }
   const applied = applyEnvVars(merged, env);
-  return { applied, files: loadedFiles, skipped: false, dirs };
+  return { applied, files: loadedFiles, skipped: false, dirs, repairedFiles };
 }

@@ -467,7 +467,21 @@ export function runMain(metaUrl, main) {
       // Project .env / .env.local → process.env (FIGMA_TOKEN etc.). Never overrides
       // existing env; never prints values. See lib/load-env.mjs.
       const { loadProjectEnv } = await import('./load-env.mjs');
-      loadProjectEnv();
+      const loaded = loadProjectEnv();
+      // Missing newline after FIGMA_TOKEN (echo >>) glues DESIGN_QA_HIDE onto the token —
+      // repair is in-memory only; warn so the person can fix the file (paths only, no values).
+      if (loaded.repairedFiles?.length) {
+        const paths = loaded.repairedFiles.map((f) => {
+          try {
+            return path.relative(process.cwd(), f) || f;
+          } catch {
+            return f;
+          }
+        });
+        console.error(
+          `${name}: note: repaired glued KEY= in ${paths.join(', ')} (a prior line had no trailing newline). Fix the file: one KEY=value per line; append with printf '\\nKEY=value\\n' >> .env`,
+        );
+      }
       return main(process.argv.slice(2));
     })
     .then(

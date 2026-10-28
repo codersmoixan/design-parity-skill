@@ -781,7 +781,7 @@ async function start(o) {
       source: 'env',
     };
     writePass(ctx.dir, pass);
-    L.push(`Pre-capture from .env: hide=${pass.stages.start.preCaptureAck.hide} · signedIn=${preCaptureEnv.signedIn}`);
+    L.push(`Pre-capture from .env: hide=${pass.stages.start.preCaptureAck.hide} · signedIn=${preCaptureEnv.signedIn} (Cookie/consent ask skipped)`);
     const authPrefix = config?.app?.auth?.envPrefix || 'DESIGN_QA_APP';
     const sessionInEnv = Boolean(process.env[`${authPrefix}_STORAGE_STATE`] || process.env[`${authPrefix}_COOKIE`] || (process.env[`${authPrefix}_USER`] && process.env[`${authPrefix}_PASS`]));
     if (preCaptureEnv.signedIn && !sessionInEnv) {
@@ -796,6 +796,8 @@ async function start(o) {
     }
   }
   if (needsPreCaptureAsk) {
+    const envHint = preCaptureEnvHint();
+    if (envHint) L.push(envHint);
     const answersFile = `${ctx.rel}/pre-capture-answers.json`;
     fillPreCaptureAskTail(ctx, pass.locale ?? 'en', answersFile, { local: appKindName === 'local' });
     const ackCmd = scriptCmd('pass.mjs', 'ack-pre-capture', '--dir', ctx.rel, '--run', ctx.runId, '--from', answersFile);
@@ -805,7 +807,7 @@ async function start(o) {
       EXIT.INPUT,
       nx(
         chainCmds(ackCmd, designNext.cmd),
-        'STOP: your next chat message must ask the person the Ask-the-person questions above in their language (copy the options). Do not end the turn with only tool output, and do not run Next until they reply (or say to use defaults). Write their answers to the file named above, then run Next.',
+        'STOP: your next chat message must ask the person the Ask-the-person questions above in their language (copy the options). Do not end the turn with only tool output, and do not run Next until they reply (or say to use defaults). Write their answers to the file named above, then run Next. To skip this ask next time: set both DESIGN_QA_HIDE and DESIGN_QA_SIGNED_IN in the repository-root .env (one KEY=value per line).',
         ...optional,
       ),
       { ready: true, design: pass.design, preCapture: true },
@@ -947,6 +949,27 @@ function preCaptureFromEnv() {
     if (!isObj(hide)) return null;
   }
   return { hide, signedIn: signedRaw === 'true' };
+}
+
+/**
+ * When the Cookie ask will run, explain a partial / invalid .env so the agent can fix the
+ * file instead of re-asking every pass. Never prints secret values.
+ */
+function preCaptureEnvHint() {
+  const hideRaw = String(process.env.DESIGN_QA_HIDE ?? '').trim();
+  const signedRaw = String(process.env.DESIGN_QA_SIGNED_IN ?? '').trim().toLowerCase();
+  const hideOk = Boolean(hideRaw) && (hideRaw === 'none' || hideRaw === 'find' || (() => {
+    try { return isObj(JSON.parse(hideRaw)); } catch { return false; }
+  })());
+  const signedOk = signedRaw === 'true' || signedRaw === 'false';
+  if (hideOk && signedOk) return null;
+  const missing = [];
+  if (!hideRaw) missing.push('DESIGN_QA_HIDE (unset — often glued onto the previous line when echo >> .env with no trailing newline)');
+  else if (!hideOk) missing.push('DESIGN_QA_HIDE (invalid: use none, find, or a JSON preCapture object)');
+  if (!signedRaw) missing.push('DESIGN_QA_SIGNED_IN (unset; use true or false)');
+  else if (!signedOk) missing.push('DESIGN_QA_SIGNED_IN (invalid: use true or false)');
+  if (!missing.length) return null;
+  return `Pre-capture .env incomplete — still asking. Fix repository-root .env: ${missing.join('; ')}. Example: DESIGN_QA_HIDE=none and DESIGN_QA_SIGNED_IN=false (each on its own line). Append with: printf '\\nDESIGN_QA_HIDE=none\\nDESIGN_QA_SIGNED_IN=false\\n' >> .env`;
 }
 
 /**
