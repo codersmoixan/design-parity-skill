@@ -17,6 +17,15 @@ Read when: step 4 of every pass, writing `<dir>/findings.json`.
 
 A `covers` entry or `compare` matcher is `{ "kind", "state", "elementClass" | "selector" | "role" + "name" | "figmaNodeId", "property" }`. `detail` is a sentence (20+ characters). Every rejection is shown to the reviewer ("Rejected by the agent"); a rejected share above 5% of a page makes the verdict at least REVIEW.
 
+**`covers` / compare reject must not swallow unnamed issues (hard rule).** A `covers` entry or compare `rejected` row only means “this FAIL row is decided.” It does **not** replace a finding card. Allowed only when:
+
+| Allowed | Not allowed |
+|---|---|
+| The open finding’s `title` / `expected` / `actual` already name **that same element and property** (or a true `duplicate` of that finding’s `ref`) | Clearing icon **width/height**, extra copy, or logo colour by hanging `covers` on a neighbour finding (e.g. logo lockup covering social-icon size) |
+| Browser-default noise with reason `false-positive` (e.g. `letter-spacing` `0px` → `normal`; font stack string that still loads the same family) | Bulk-attaching every leftover `elementClass` in a footer/header band so `--check` passes while size/copy issues stay unnamed |
+
+If `inspect` or the crop shows a real mismatch (e.g. social icons **48×48 → 21×21**) and no finding’s prose names that size, **file a finding first**, then cover/reject only matching rows.
+
 **Rejection reasons.** Worklist items: `DATA` (content, not design) · `same` (rendering only, refused for an item above 2% of its page) · `duplicate` (+ `duplicateOf`: a finding's `ref`, or a covered worklist key) · `known-drift` (+ `knownDrift`) · `covered-by-audit` (+ `coveredBy`: an audit key you filed) · `matches-design` · `intentional` · `out-of-scope`. Audit candidates: the compare-row reasons plus `matches-design` for shared components only. Compare rows: `DATA` · `known-drift` · `intentional` · `duplicate` · `false-positive` (a browser default, not authored) · `out-of-scope`.
 
 ## Write a finding
@@ -55,6 +64,11 @@ Review cards show `title` / `expected` / `actual` / `fix.summary`. A worklist pi
 | Different property / mechanism | IMAGE fill colour vs missing/extra TEXT vs icon asset |
 | Design layer visibility differs | App shows copy that exists in Figma only as `visible: false` |
 | Hint class differs | `text-only-app` vs `only-design` VECTOR vs size-only |
+| Size / geometry alone | Social icons **48×48 → 21×21** vs extra `Follow us` copy (file both) |
+
+**`size` / geometry must get its own card (hard rule).** When a worklist `size` / `size/position` hint, or `inspect` on the item, shows a meaningful box delta on an icon, badge, logo, or control (width, height, or both off enough to read wrong — e.g. **48×48 → 21×21**), file a dedicated `style` finding (`property: width` / `height` / both). Do **not** fold that size into a sibling card about extra/missing text, colour, or a different asset in the same band.
+
+**Dense chrome bands (header / footer / utility row):** before marking the worklist item done, list every distinct visible piece in the crop (logo lockup, extra/missing label, social icon **size**, payment marks, copyright, column heading colour, …). Each piece → its own finding or an explicit rejection. Closing the item after only the “loudest” one or two issues is a miss.
 
 **Write so a reviewer can act without re-opening the crop.**
 
@@ -69,8 +83,10 @@ Review cards show `title` / `expected` / `actual` / `fix.summary`. A worklist pi
 
 - One finding titled only “页脚未对齐 / footer icons” that pins logo + Follow us + payments together, while prose only describes the right-hand payment row.
 - Pinning `text-only-app: Follow us` under a finding whose `title` never says Follow us.
+- Filing Follow us / logo colour while leaving social (or payment) **icon size** unnamed when inspect shows a clear box delta.
 - Treating a bitmapped logo (`<img>`) colour error as “covered” by a generic footer finding that never mentions wordmark / lockup / mask+white vectors.
 - Bulk-`false-positive` rejecting compare rows that would have forced you to spell out these issues — rejections must not hide undiagnosed structure problems.
+- Using `covers` (or a script that attaches every leftover `elementClass` to a nearby finding) so `--check` passes while the review cards still omit a real visual mismatch.
 
 **Raster / composed chrome (logos, badges):** If design composites IMAGE + mask rect + VECTOR text (or equivalent) and the app uses a single wrong PNG (e.g. header lockup on a dark footer), file a **structure** finding that states that stack — not only “logo size”. Colour-of-letters inside a bitmap will **not** show up as a CSS `color` FAIL; the finding text must still call it out when the worklist crop or inspect layers show the mismatch.
 
